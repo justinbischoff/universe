@@ -1,0 +1,1782 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="An interactive timeline of the universe told from Earth's point of view.">
+<title>The Making of Earth</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400..700;1,6..96,400..700&family=Hanken+Grotesk:wght@400;500;600&family=Martian+Mono:wght@300;400;500&display=swap">
+<style>
+@property --era { syntax: '<color>'; inherits: true; initial-value: #c4b5ff; }
+
+/* Layout: full-bleed canvas stage. Instrument readout and chapter card hold the left column,
+   Earth vitals sit top right, and a timeline dock runs along the bottom. Single dark world by design. */
+:root {
+  --space: #05060b;
+  --ink: #e9e5d9;
+  --dim: #9298ab;
+  --hair: rgba(233, 229, 217, .13);
+  --panel: rgba(8, 9, 16, .68);
+  --era: #c4b5ff;
+  --f-display: "Bodoni Moda", "Didot", "Bodoni 72", Georgia, serif;
+  --f-body: "Hanken Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "Martian Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  color-scheme: dark;
+  transition: --era 1.4s ease;
+}
+html, body { background: var(--space); color: var(--ink); overflow: hidden; }
+body { font: 15px/1.55 var(--f-body); -webkit-font-smoothing: antialiased; }
+
+#stage { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+.shade {
+  position: fixed; inset: 0; pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(5,6,11,.72) 0, rgba(5,6,11,.25) 420px, rgba(5,6,11,0) 620px),
+    linear-gradient(0deg, rgba(5,6,11,.9) 0, rgba(5,6,11,0) 190px);
+}
+
+.ui {
+  position: fixed; inset: 0;
+  padding: calc(18px + env(safe-area-inset-top, 0px)) 24px calc(12px + env(safe-area-inset-bottom, 0px));
+  display: grid;
+  grid-template-columns: minmax(300px, 372px) 1fr auto;
+  grid-template-rows: auto 1fr auto;
+  grid-template-areas: "readout . vitals" "card . ." "dock dock dock";
+  gap: 14px 28px;
+  pointer-events: none;
+}
+.ui > * { pointer-events: auto; min-width: 0; }
+
+/* readout */
+.readout { grid-area: readout; display: grid; gap: 2px; }
+.readout p { margin: 0; }
+.brand {
+  font: 500 10.5px/1 var(--f-mono); letter-spacing: .22em; text-transform: uppercase; color: var(--dim);
+  margin-bottom: 14px !important;
+}
+.era-name { display: flex; align-items: center; gap: 8px; font: 500 11px/1.2 var(--f-mono); letter-spacing: .14em; text-transform: uppercase; color: var(--era); }
+.era-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--era); box-shadow: 0 0 10px var(--era); }
+.big {
+  font: 300 clamp(34px, 4.6vw, 58px)/1.02 var(--f-mono); letter-spacing: -.04em;
+  font-variant-numeric: tabular-nums; margin-top: 8px !important; white-space: nowrap;
+}
+.unit { font: 400 12px/1.3 var(--f-mono); color: var(--ink); opacity: .85; letter-spacing: .02em; }
+.sub { font: 400 11px/1.4 var(--f-mono); color: var(--dim); margin-top: 6px !important; }
+
+/* vitals */
+.vitals {
+  grid-area: vitals; align-self: start;
+  display: grid; grid-template-columns: repeat(2, minmax(118px, auto)); gap: 12px 22px;
+  padding: 14px 16px; border: 1px solid var(--hair); border-radius: 4px; background: var(--panel);
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  transition: opacity .6s;
+}
+.vitals h2 { grid-column: 1 / -1; margin: 0; font: 500 10px/1 var(--f-mono); letter-spacing: .18em; text-transform: uppercase; color: var(--dim); }
+.vital { display: grid; gap: 3px; }
+.vl { font: 400 11px/1.2 var(--f-body); color: var(--dim); }
+.vv { font: 400 17px/1.1 var(--f-mono); font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+.vv.na { color: var(--dim); opacity: .55; }
+.vnote { grid-column: 1 / -1; margin: 0; font: 400 10.5px/1.35 var(--f-body); color: var(--dim); max-width: 26ch; }
+
+/* card */
+.card {
+  grid-area: card; align-self: end;
+  display: grid; gap: 12px; align-content: start;
+  padding: 20px 22px 20px; max-height: 100%; overflow-y: auto; overscroll-behavior: contain;
+  border: 1px solid var(--hair); border-radius: 4px; background: var(--panel);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  scrollbar-width: thin;
+}
+.card.swap { animation: swap .7s ease both; }
+@keyframes swap { from { opacity: .15; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.card-head { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; font: 400 10.5px/1.3 var(--f-mono); letter-spacing: .08em; color: var(--dim); }
+.card-head #cdate { color: var(--era); letter-spacing: .02em; }
+.card h1 {
+  margin: 0; font: italic 500 clamp(26px, 2.6vw, 34px)/1.05 var(--f-display); letter-spacing: -.01em;
+  text-wrap: balance;
+}
+.card > p { margin: 0; color: rgba(233,229,217,.86); max-width: 62ch; }
+.why { display: grid; gap: 5px; padding-top: 12px; border-top: 1px solid var(--hair); }
+.why h2 { margin: 0; font: 500 10px/1 var(--f-mono); letter-spacing: .16em; text-transform: uppercase; color: var(--era); }
+.why p { margin: 0; font-size: 14.5px; color: var(--ink); }
+.els { display: flex; flex-wrap: wrap; gap: 6px; }
+.els:empty { display: none; }
+.el {
+  display: grid; grid-template-rows: auto 1fr auto; width: 66px; min-height: 66px; padding: 5px 6px;
+  border: 1px solid color-mix(in srgb, var(--era) 45%, transparent); border-radius: 2px;
+  background: color-mix(in srgb, var(--era) 8%, transparent);
+}
+.el .z { font: 400 9px/1 var(--f-mono); color: var(--dim); }
+.el .s { font: 500 22px/1.15 var(--f-display); color: var(--ink); }
+.el .n { font: 400 9.5px/1.2 var(--f-body); color: var(--dim); }
+.el .n b { font-weight: 600; color: var(--era); }
+
+/* dock */
+.dock { grid-area: dock; display: flex; align-items: center; gap: 22px; padding-top: 6px; }
+.ctrls { display: flex; align-items: center; gap: 6px; flex: none; }
+.ctrls button {
+  display: grid; place-items: center; width: 38px; height: 38px; padding: 0;
+  border: 1px solid var(--hair); border-radius: 50%; background: rgba(8,9,16,.6); color: var(--ink); cursor: pointer;
+  transition: border-color .2s, background .2s;
+}
+.ctrls button:hover { border-color: var(--era); }
+.ctrls button.play { width: 48px; height: 48px; border-color: var(--era); background: color-mix(in srgb, var(--era) 16%, rgba(8,9,16,.6)); }
+.ctrls svg { width: 16px; height: 16px; fill: currentColor; }
+button:focus-visible, .story:focus-visible, .scale-bar:focus-visible { outline: 2px solid var(--era); outline-offset: 3px; }
+
+.tracks { flex: 1; min-width: 0; display: grid; gap: 7px; }
+.eras { position: relative; height: 14px; }
+.eras span {
+  position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap;
+  font: 400 9.5px/14px var(--f-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--dim); transition: color .4s;
+}
+.eras span.on { color: var(--era); }
+.story { position: relative; height: 26px; cursor: pointer; touch-action: none; }
+.seg { position: absolute; top: 12px; height: 2px; border-radius: 1px; opacity: .55; }
+.dot {
+  position: absolute; top: 13px; width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; border-radius: 50%;
+  background: var(--space); border: 1.5px solid currentColor; transition: transform .25s, background .25s;
+  pointer-events: none;
+}
+.dot.past { background: currentColor; }
+.dot.on { transform: scale(1.6); background: currentColor; box-shadow: 0 0 12px currentColor; }
+.thumb {
+  position: absolute; top: 1px; width: 2px; height: 24px; margin-left: -1px; background: var(--ink);
+  box-shadow: 0 0 8px rgba(255,255,255,.6); pointer-events: none;
+}
+.scale { display: grid; gap: 4px; }
+.scale-bar { position: relative; height: 10px; cursor: pointer; }
+.scale-bar .base { position: absolute; inset: 4px 0; background: rgba(233,229,217,.12); border-radius: 1px; }
+.scale-bar .band { position: absolute; border-radius: 1px; }
+.scale-bar .tick { position: absolute; top: 1px; width: 1px; height: 8px; background: rgba(233,229,217,.35); }
+.scale-bar .now { position: absolute; top: -2px; width: 1px; height: 14px; background: var(--ink); }
+.scale-bar .marker {
+  position: absolute; top: -3px; width: 0; height: 0; margin-left: -5px;
+  border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 7px solid var(--era);
+  filter: drop-shadow(0 0 4px var(--era));
+}
+.scale-labels { position: relative; height: 13px; font: 400 9.5px/13px var(--f-mono); color: var(--dim); letter-spacing: .04em; }
+.scale-labels span { position: absolute; top: 0; white-space: nowrap; }
+.scale-labels .k { left: 0; color: rgba(233,229,217,.5); }
+.legend-earth { color: #5fc8d8; }
+.legend-life { color: #9bd770; }
+
+.tip {
+  position: fixed; z-index: 5; pointer-events: none; transform: translate(-50%, -100%);
+  padding: 6px 9px; border-radius: 3px; background: rgba(12,13,22,.95); border: 1px solid var(--hair);
+  font: 400 11px/1.3 var(--f-body); white-space: nowrap;
+}
+.tip b { display: block; font: 400 9.5px/1.3 var(--f-mono); color: var(--dim); font-weight: 400; }
+
+@media (max-width: 1100px) {
+  .vitals { grid-template-columns: 1fr; gap: 9px; }
+  .vv { font-size: 15px; }
+}
+@media (max-width: 860px) {
+  .shade { background: linear-gradient(0deg, rgba(5,6,11,.92) 0, rgba(5,6,11,.4) 52%, rgba(5,6,11,0) 70%), linear-gradient(180deg, rgba(5,6,11,.7) 0, rgba(5,6,11,0) 150px); }
+  .ui {
+    padding: calc(12px + env(safe-area-inset-top, 0px)) 16px calc(10px + env(safe-area-inset-bottom, 0px));
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto 1fr auto auto auto;
+    grid-template-areas: "readout" "." "vitals" "card" "dock";
+    gap: 8px;
+  }
+  .brand { margin-bottom: 6px !important; }
+  .big { font-size: 32px; margin-top: 4px !important; }
+  .vitals { grid-template-columns: repeat(4, minmax(0, 1fr)); padding: 8px 10px; gap: 6px 10px; }
+  .vitals h2, .vnote { display: none; }
+  .vl { font-size: 9.5px; }
+  .vv { font-size: 12.5px; }
+  .card { max-height: 34vh; padding: 14px 16px; gap: 9px; }
+  .card h1 { font-size: 24px; }
+  .card > p, .why p { font-size: 13.5px; }
+  .el { width: 58px; min-height: 58px; }
+  .el .s { font-size: 19px; }
+  .dock { gap: 12px; }
+  .ctrls button { width: 34px; height: 34px; }
+  .ctrls button.play { width: 42px; height: 42px; }
+  .eras { display: none; }
+  .scale-labels .mid { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card.swap { animation: none; }
+  :root { transition: none; }
+}
+</style>
+</head>
+<body>
+
+<canvas id="stage" aria-hidden="true"></canvas>
+<div class="shade" aria-hidden="true"></div>
+
+<div class="ui">
+  <header class="readout" id="readout">
+    <p class="brand">The Making of Earth</p>
+    <p class="era-name"><span class="era-dot"></span><span id="eraName">The early cosmos</span></p>
+    <p class="big" id="bigNum">t = 0</p>
+    <p class="unit" id="bigUnit">the first instant</p>
+    <p class="sub" id="subLine">13.79 billion years ago</p>
+  </header>
+
+  <section class="vitals" id="vitals" aria-label="Conditions at this moment">
+    <h2>Conditions then</h2>
+    <div class="vital"><span class="vl">Sun brightness</span><span class="vv na" id="vSun">none yet</span></div>
+    <div class="vital"><span class="vl">Length of day</span><span class="vv na" id="vDay">no Earth</span></div>
+    <div class="vital"><span class="vl">Moon distance</span><span class="vv na" id="vMoon">no Moon</span></div>
+    <div class="vital"><span class="vl">Oxygen in air</span><span class="vv na" id="vO2">no air</span></div>
+    <p class="vnote">Rough estimates from rocks, fossils, and models. Sun brightness is relative to today.</p>
+  </section>
+
+  <article class="card" id="card" aria-live="polite">
+    <div class="card-head"><span id="chap">01 / 32</span><span id="cdate"></span></div>
+    <h1 id="ctitle">The Big Bang</h1>
+    <p id="cbody"></p>
+    <div class="why"><h2>What it meant for Earth</h2><p id="cwhy"></p></div>
+    <div class="els" id="cels"></div>
+  </article>
+
+  <footer class="dock" id="dock">
+    <div class="ctrls">
+      <button id="bPrev" type="button" aria-label="Previous event"><svg viewBox="0 0 16 16"><path d="M3 2h2v12H3zM14 2v12L6 8z"/></svg></button>
+      <button id="bPlay" type="button" class="play" aria-label="Pause"><svg viewBox="0 0 16 16" id="playIcon"><path d="M4 2h3v12H4zM9 2h3v12H9z"/></svg></button>
+      <button id="bNext" type="button" aria-label="Next event"><svg viewBox="0 0 16 16"><path d="M11 2h2v12h-2zM2 2v12l8-6z"/></svg></button>
+    </div>
+    <div class="tracks">
+      <div class="eras" id="eras"></div>
+      <div class="story" id="story" role="slider" tabindex="0" aria-label="Timeline of events" aria-valuemin="1" aria-valuemax="32" aria-valuenow="1">
+        <div id="segs"></div>
+        <div id="dots"></div>
+        <div class="thumb" id="thumb"></div>
+      </div>
+      <div class="scale">
+        <div class="scale-bar" id="scaleBar" title="Drawn to scale: Big Bang to the Sun's death">
+          <div class="base"></div>
+          <div id="scaleInner"></div>
+          <div class="marker" id="scaleMarker"></div>
+        </div>
+        <div class="scale-labels" id="scaleLabels"></div>
+      </div>
+    </div>
+  </footer>
+</div>
+<div class="tip" id="tip" hidden></div>
+
+<script>
+(() => {
+'use strict';
+
+/* ---------- utilities ---------- */
+const TAU = Math.PI * 2;
+const clamp = (x, a = 0, b = 1) => x < a ? a : x > b ? b : x;
+const lerp = (a, b, t) => a + (b - a) * t;
+const ease = t => t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+const easeOut = t => 1 - Math.pow(1 - t, 3);
+const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a)); return t * t * (3 - 2 * t); };
+const mix = (c1, c2, t) => [lerp(c1[0], c2[0], t), lerp(c1[1], c2[1], t), lerp(c1[2], c2[2], t)];
+const rgba = (c, a) => 'rgba(' + (c[0] | 0) + ',' + (c[1] | 0) + ',' + (c[2] | 0) + ',' + a.toFixed(3) + ')';
+function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function gauss(r) { return Math.sqrt(-2 * Math.log(r() + 1e-9)) * Math.cos(TAU * r()); }
+function hash3(x, y, z, s) {
+  let h = Math.imul(x | 0, 374761393) ^ Math.imul(y | 0, 668265263) ^ Math.imul(z | 0, 1274126177) ^ Math.imul(s | 0, 1103515245);
+  h = Math.imul(h ^ (h >>> 13), 1274126177); h ^= h >>> 16; return (h >>> 0) / 4294967296;
+}
+function vnoise(x, y, z, s) {
+  const xi = Math.floor(x), yi = Math.floor(y), zi = Math.floor(z);
+  const xf = x - xi, yf = y - yi, zf = z - zi;
+  const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf), w = zf * zf * (3 - 2 * zf);
+  const c000 = hash3(xi, yi, zi, s), c100 = hash3(xi + 1, yi, zi, s), c010 = hash3(xi, yi + 1, zi, s), c110 = hash3(xi + 1, yi + 1, zi, s);
+  const c001 = hash3(xi, yi, zi + 1, s), c101 = hash3(xi + 1, yi, zi + 1, s), c011 = hash3(xi, yi + 1, zi + 1, s), c111 = hash3(xi + 1, yi + 1, zi + 1, s);
+  const x00 = lerp(c000, c100, u), x10 = lerp(c010, c110, u), x01 = lerp(c001, c101, u), x11 = lerp(c011, c111, u);
+  return lerp(lerp(x00, x10, v), lerp(x01, x11, v), w);
+}
+function fbm(x, y, z, s, oct) {
+  let a = .5, f = 1, sum = 0, n = 0;
+  for (let i = 0; i < oct; i++) { sum += a * vnoise(x * f, y * f, z * f, s + i * 17); n += a; a *= .5; f *= 2.03; }
+  return sum / n;
+}
+const memo = {};
+const once = (key, fn) => memo[key] || (memo[key] = fn());
+function interpT(tab, x) { // tab sorted by descending x: [[x, v], ...]
+  if (x >= tab[0][0]) return tab[0][1];
+  for (let i = 1; i < tab.length; i++) {
+    if (x >= tab[i][0]) { const [x0, v0] = tab[i - 1], [x1, v1] = tab[i]; return lerp(v0, v1, (x0 - x) / (x0 - x1)); }
+  }
+  return tab[tab.length - 1][1];
+}
+
+/* ---------- content ---------- */
+const NOW = 13.787e9;
+const ERAS = {
+  cosmos: { name: 'The early cosmos', color: '#c4b5ff' },
+  galaxy: { name: 'The galaxy', color: '#80b6ff' },
+  forge:  { name: 'Star forges', color: '#ff9a5c' },
+  sun:    { name: 'The solar system', color: '#ffcf6b' },
+  earth:  { name: 'Young Earth', color: '#5fc8d8' },
+  life:   { name: 'Life', color: '#9bd770' },
+  future: { name: 'The future', color: '#ff6b6b' }
+};
+const EL = { H: [1, 'Hydrogen'], He: [2, 'Helium'], Li: [3, 'Lithium'], C: [6, 'Carbon'], N: [7, 'Nitrogen'], O: [8, 'Oxygen'],
+  Mg: [12, 'Magnesium'], Al: [13, 'Aluminium'], Si: [14, 'Silicon'], S: [16, 'Sulfur'], Ca: [20, 'Calcium'], Fe: [26, 'Iron'],
+  I: [53, 'Iodine'], Ba: [56, 'Barium'], Pt: [78, 'Platinum'], Au: [79, 'Gold'], Pb: [82, 'Lead'], U: [92, 'Uranium'] };
+const MIN = 1 / 525960;
+
+const EV = [
+  { era: 'cosmos', age: 0, scene: 'bang', title: 'The Big Bang', date: '13.8 billion years ago',
+    body: 'Space, time, and all the energy that will ever become matter begin in a hot, dense state and start expanding. Within the first second the universe cools enough for protons and neutrons to exist.',
+    why: 'The protons made here are the hydrogen in Earth’s oceans. Every water molecule carries two of them.' },
+  { era: 'cosmos', age: 3 * MIN, scene: 'nuclei', title: 'The first nuclei', date: '3 to 20 minutes after the Big Bang',
+    body: 'For a few minutes the whole universe works like a fusion reactor. It turns about a quarter of its mass into helium, plus a trace of lithium, before expansion cools it too far to go on.',
+    why: 'That is the entire starting inventory. No carbon, oxygen, silicon, or iron exists yet, so a rocky planet is impossible for now.',
+    els: [['H', '75% by mass'], ['He', '25% by mass'], ['Li', 'a trace']] },
+  { era: 'cosmos', age: 380000, scene: 'cmb', title: 'The first light', date: '380,000 years after the Big Bang',
+    body: 'Electrons settle around nuclei and form neutral atoms, so light can travel freely for the first time. We still detect it, stretched into microwaves, as the cosmic microwave background. About 100 million starless years follow, the Dark Ages.',
+    why: 'Faint hot and cold spots in this light are density ripples. Gravity grows the denser ones into galaxies, including ours.' },
+  { era: 'cosmos', age: 1.8e8, scene: 'firststars', title: 'The first stars', date: '~100 to 200 million years after the Big Bang',
+    body: 'Clouds of pure hydrogen and helium collapse into stars that may be hundreds of times the mass of the Sun. They burn for a few million years, then explode. Their ultraviolet light strips electrons from the gas between galaxies, a process called reionization.',
+    why: 'These are the first factories for carbon and oxygen. Every later generation of stars starts out a little richer in the ingredients of planets.',
+    els: [['C', 'first made'], ['O', 'first made']] },
+  { era: 'galaxy', ya: 13.0e9, scene: 'galaxy', v: 'assemble', title: 'The Milky Way takes shape', date: '~13 billion years ago',
+    body: 'Gas and small protogalaxies fall together under gravity to build our galaxy. Some of its stars are almost as old as the universe; the halo star HD 140283 is about 12 billion years old.',
+    why: 'The Milky Way becomes the recycling plant where Earth’s raw materials are made, mixed, and gathered over the next 8 billion years.' },
+  { era: 'galaxy', ya: 10.0e9, scene: 'galaxy', v: 'merger', title: 'A galactic collision', date: '~10 billion years ago',
+    body: 'A dwarf galaxy now called Gaia–Enceladus crashes into the young Milky Way. Its stars scatter through the halo, where the Gaia space telescope recognised them in 2018 by their shared, unusual orbits.',
+    why: 'Mergers like this stir up gas and set off bursts of star formation, which speeds up the making of heavy elements.' },
+  { era: 'forge', ya: 8.0e9, scene: 'supernova', title: 'Generations of supernovae', date: 'Again and again, from ~12 billion years ago',
+    body: 'Massive stars live fast and explode as core-collapse supernovae, blasting out oxygen, silicon, magnesium, and calcium. White dwarfs that detonate as Type Ia supernovae add most of the galaxy’s iron.',
+    why: 'By mass, Earth is mostly iron, oxygen, silicon, and magnesium. Nearly all of it was forged in stars that died before the Sun was born.',
+    els: [['Fe', '<b>32%</b> of Earth'], ['O', '<b>30%</b> of Earth'], ['Si', '<b>15%</b> of Earth'], ['Mg', '<b>14%</b> of Earth'], ['S', 'core & crust'], ['Ca', 'crust, bones']] },
+  { era: 'forge', ya: 6.5e9, scene: 'pneb', v: 'carbon', title: 'Dying stars exhale carbon', date: 'Billions of years before the Sun',
+    body: 'Near the end of their lives, stars like the Sun swell into red giants and shed their outer layers as glowing planetary nebulae. These winds carry fresh carbon and nitrogen, and heavy elements such as barium and lead that the star built up slowly.',
+    why: 'A large share of the carbon in living things, and much of the nitrogen in the air, came from these quiet deaths rather than from explosions.',
+    els: [['C', 'basis of life'], ['N', '78% of air'], ['Ba', 'slow neutron capture'], ['Pb', 'slow neutron capture']] },
+  { era: 'forge', ya: 4.7e9, scene: 'kilonova', title: 'Neutron stars collide', date: 'Before 4.6 billion years ago',
+    body: 'When two neutron stars spiral together and merge, the blast, called a kilonova, builds heavy elements by rapid neutron capture. The 2017 merger GW170817 was seen in both gravitational waves and light, confirming the process.',
+    why: 'Earth’s gold, platinum, and uranium trace back to events like this. One study suggests a single merger about 80 million years before the Sun formed, around 1,000 light-years away, supplied a noticeable share of them. Uranium’s decay still helps heat Earth’s interior.',
+    els: [['I', 'thyroid'], ['Pt', 'rare metal'], ['Au', 'rare metal'], ['U', 'heats the mantle']] },
+  { era: 'sun', ya: 4.568e9, scene: 'cloud', title: 'A supernova next door', date: '~4.568 billion years ago',
+    body: 'The Sun’s birth cloud sits in a crowded stellar nursery. Short-lived radioactive aluminium-26 and iron-60, found locked in meteorites, show that nearby massive stars seeded the cloud around the time it collapsed.',
+    why: 'Aluminium-26 heated the first small bodies from inside, melting and drying them. That may be one reason the rocky inner planets formed relatively dry.',
+    els: [['Al', '<b>²⁶Al</b> half-life 0.7 Myr', '26'], ['Fe', '<b>⁶⁰Fe</b> half-life 2.6 Myr', '60']] },
+  { era: 'sun', ya: 4.5673e9, scene: 'disk', v: 'ignite', title: 'The Sun ignites', date: '4,567.3 million years ago',
+    body: 'The cloud collapses into a spinning disk with the young Sun at its centre. The oldest solids in the solar system, calcium–aluminium-rich inclusions found in meteorites, condense here. Their age is the solar system’s official starting point.',
+    why: 'Beyond the snow line, water freezes into ice. Inside it, only rock and metal condense, which sets the recipe for the rocky inner planets.' },
+  { era: 'sun', ya: 4.566e9, scene: 'disk', v: 'jupiter', title: 'Jupiter carves the disk', date: 'Within ~1 million years of the Sun',
+    body: 'Jupiter’s core grows fast, reaching about 20 Earth masses within a million years. It opens a gap that splits the disk into two reservoirs, a divide still visible in meteorite isotopes.',
+    why: 'Jupiter limited how much water-rich material reached the inner zone and may have stunted Mars. Earth was built mostly from the dry inner reservoir.' },
+  { era: 'earth', ya: 4.54e9, scene: 'planet', v: 'magma', title: 'Earth assembles', date: '~4.54 billion years ago',
+    body: 'Over tens of millions of years, collisions between planetary embryos build a planet. Heat from impacts and radioactive decay melts it, and iron sinks to form the core.',
+    why: 'The molten iron core will later power a magnetic field that shields the atmosphere from the solar wind.' },
+  { era: 'earth', ya: 4.51e9, scene: 'impact', v: 'theia', title: 'Theia and the Moon', date: '~4.51 billion years ago',
+    body: 'A Mars-sized body, Theia, strikes the young Earth. Debris thrown into orbit gathers into the Moon, which forms perhaps 15 times closer than it is today. A day lasts only a few hours.',
+    why: 'The Moon steadies Earth’s axial tilt, keeping the climate relatively stable for billions of years. Its tides are still slowing Earth’s spin.' },
+  { era: 'earth', ya: 4.4e9, scene: 'planet', v: 'hadean', title: 'The first oceans', date: '~4.4 billion years ago',
+    body: 'Zircon crystals from the Jack Hills of Western Australia, 4.4 billion years old, carry chemical traces of liquid water. The surface has cooled enough for rain and oceans, even as large impacts continue.',
+    why: 'Liquid water is the solvent all known life depends on. Earth had it almost from the start, while the Sun was about 30% dimmer than today.' },
+  { era: 'life', ya: 4.2e9, scene: 'cells', v: 'luca', title: 'The first cells', date: '~4.2 to 3.5 billion years ago',
+    body: 'Somewhere, possibly at warm hydrothermal vents on the seafloor, chemistry becomes biology. A 2024 genetic study puts the last universal common ancestor of all life at about 4.2 billion years ago. Fossil microbial mats in Australia’s Pilbara region confirm life by 3.48 billion years ago.',
+    why: 'That ancestor already had DNA, ribosomes, and a membrane. Every organism since, from bacteria to trees, descends from it.' },
+  { era: 'life', ya: 2.9e9, scene: 'strom', title: 'Life learns to use sunlight', date: '~3.5 to 2.7 billion years ago',
+    body: 'Microbial mats build layered mounds called stromatolites in shallow seas. Cyanobacteria develop oxygen-producing photosynthesis: they split water using sunlight and release oxygen as waste.',
+    why: 'For hundreds of millions of years that oxygen is soaked up by dissolved iron and volcanic gases. The oceans rust before oxygen can build up in the air.' },
+  { era: 'life', ya: 2.4e9, scene: 'planet', v: 'goe', title: 'The Great Oxidation Event', date: '~2.4 billion years ago',
+    body: 'Oxygen finally accumulates in the atmosphere. Methane, a strong greenhouse gas, is destroyed, and Earth slides into its first global glaciations. Iron dissolved in seawater settles out as banded iron formations.',
+    why: 'Oxygen makes an ozone layer possible and later fuels large, active life. Most of the iron ore mined today comes from these rust layers.' },
+  { era: 'life', ya: 1.9e9, scene: 'euk', title: 'Complex cells', date: '~2 to 1.6 billion years ago',
+    body: 'One microbe engulfs a bacterium that survives inside it and becomes the mitochondrion, a power plant for the cell. The result is the eukaryotic cell, with a nucleus and internal compartments. Clear eukaryote fossils appear by about 1.65 billion years ago.',
+    why: 'Every animal, plant, and fungus is built from eukaryotic cells. The extra energy from mitochondria made larger, more complex bodies possible.' },
+  { era: 'life', ya: 1.05e9, scene: 'cells', v: 'colony', title: 'Cells team up', date: '~1 billion years ago',
+    body: 'Multicellular life evolves several times. Bangiomorpha, a red alga about 1.05 billion years old, is the oldest known organism with distinct cell types and sexual reproduction.',
+    why: 'Dividing work between cells is the step that eventually leads to leaves, roots, and wood.' },
+  { era: 'life', ya: 0.7e9, scene: 'planet', v: 'snowball', title: 'Snowball Earth', date: '~720 to 635 million years ago',
+    body: 'Ice sheets reach the tropics, and the planet may freeze nearly pole to pole, twice. Volcanoes keep pumping carbon dioxide into the air until the greenhouse effect breaks the ice.',
+    why: 'Life survives in refuges under thin ice and at hot springs. Soon after the thaw, oxygen rises again and large organisms appear.' },
+  { era: 'life', ya: 0.539e9, scene: 'ocean', title: 'Animals arrive', date: '~575 to 520 million years ago',
+    body: 'Soft-bodied Ediacaran organisms spread across the seafloor, followed by the Cambrian explosion starting 539 million years ago. Within about 20 million years most major animal groups appear, with eyes, shells, and legs.',
+    why: 'Burrowing animals mix the seafloor and change ocean chemistry. Shells and skeletons begin locking carbon away in limestone.' },
+  { era: 'life', ya: 0.47e9, scene: 'land', v: 'moss', title: 'Plants reach land', date: '~470 million years ago',
+    body: 'Fossil spores show small plants, related to today’s liverworts, colonising damp ground. By now the ozone layer blocks most of the harmful ultraviolet light reaching land.',
+    why: 'Plants start turning bare rock into soil, a process that will reshape continents, rivers, and the atmosphere.' },
+  { era: 'life', ya: 0.385e9, scene: 'land', v: 'trees', title: 'The first trees', date: '~390 to 385 million years ago',
+    body: 'In the Devonian, plants evolve wood. Wattieza grew about 8 metres tall with a palm-like crown, and Archaeopteris had true wood, leafy branches, and deep roots. A fossil forest near Cairo, New York, about 386 million years old, is the oldest known.',
+    why: 'Deep roots broke rock into soil and pulled carbon dioxide out of the air, cooling the planet and raising oxygen. Nutrients washed into the sea may also have contributed to Late Devonian extinctions.' },
+  { era: 'life', ya: 0.31e9, scene: 'land', v: 'coal', title: 'The coal forests', date: '~359 to 299 million years ago',
+    body: 'Swamp forests of giant clubmosses, some 30 metres tall, cover the tropics. Oxygen climbs to around 30 percent, enough to support dragonflies with wingspans of 70 centimetres.',
+    why: 'Huge amounts of wood were buried before it could rot, and became coal. That buried carbon kept the air oxygen-rich and the climate cool.' },
+  { era: 'life', ya: 0.252e9, scene: 'planet', v: 'dying', title: 'The Great Dying', date: '252 million years ago',
+    body: 'Massive eruptions in what is now Siberia release enormous volumes of carbon dioxide. Oceans warm, lose oxygen, and acidify. Roughly 80 to 90 percent of marine species vanish, the worst mass extinction known.',
+    why: 'Life took millions of years to recover. The survivors included the ancestors of dinosaurs and mammals.' },
+  { era: 'life', ya: 66e6, scene: 'impact', v: 'chicxulub', title: 'The asteroid', date: '66 million years ago',
+    body: 'A rock about 10 kilometres wide strikes what is now Mexico’s Yucatán Peninsula. Soot and dust darken the sky, and about three quarters of species, including all non-bird dinosaurs, disappear.',
+    why: 'With the dinosaurs gone, mammals and flowering plants spread into the emptied world.' },
+  { era: 'life', ya: 0, scene: 'planet', v: 'now', title: 'Today', date: 'Now',
+    body: 'Modern humans have existed for about 300,000 years, under 0.01 percent of Earth’s history. Squeeze Earth’s 4.54 billion years into one day and we arrive less than 6 seconds before midnight.',
+    why: 'Nearly everything that made Earth habitable happened long before anyone was here to see it. Microbes ran the planet for most of its history.' },
+  { era: 'future', ya: -1.0e9, scene: 'planet', v: 'future', title: 'Too bright for oceans', date: '~1 billion years from now',
+    body: 'The Sun brightens by about 10 percent every billion years. Faster weathering pulls carbon dioxide from the air until most plants can no longer photosynthesise, and rising heat drives water vapour high into the atmosphere, where it is lost to space.',
+    why: 'Complex life probably ends here. Microbes may hold on for a while longer underground.' },
+  { era: 'future', ya: -4.5e9, scene: 'galaxy', v: 'andromeda', title: 'Andromeda draws near', date: 'Billions of years from now',
+    body: 'The Andromeda galaxy is approaching at about 110 kilometres per second. A collision was long expected in about 4.5 billion years; a 2025 analysis of Hubble and Gaia data puts the chance of a merger within 10 billion years at roughly 50 percent.',
+    why: 'Even if the galaxies merge, stars are so far apart that the Sun would almost certainly not hit another star. The night sky would change completely.' },
+  { era: 'future', ya: -7.6e9, scene: 'redgiant', title: 'The Sun becomes a red giant', date: '~5 to 7.6 billion years from now',
+    body: 'With the hydrogen in its core used up, the Sun swells to more than 200 times its current size and swallows Mercury and Venus. Earth’s orbit widens as the Sun loses mass, but tidal drag likely pulls it in too.',
+    why: 'The planet that formed 4.5 billion years earlier probably ends as a scorched rock, vaporised in the Sun’s outer layers.' },
+  { era: 'future', ya: -7.7e9, scene: 'pneb', v: 'finale', title: 'Back to the stars', date: '~8 billion years from now',
+    body: 'The Sun puffs off its outer layers as a planetary nebula, leaving a white dwarf about the size of Earth. Gas, including carbon the Sun made and whatever remains of the planets, flows back into the galaxy.',
+    why: 'The cycle that built Earth starts again. Atoms that were once in Earth’s rocks, oceans, and trees may end up in new stars and new planets.' }
+];
+EV.forEach(e => { if (e.age == null) e.age = NOW - e.ya; if (e.ya == null) e.ya = NOW - e.age; });
+const N = EV.length;
+
+/* approximate Earth conditions, keyed by billions of years ago */
+const DAY = [[4.51, 5], [4.0, 9], [3.2, 13], [2.4, 17], [2.0, 19], [1.1, 19], [0.9, 20], [0.62, 21.9], [0.4, 22], [0.07, 23.5], [0, 24]];
+const MOON = [[4.51, 25], [4.45, 90], [4.0, 180], [3.2, 270], [2.45, 320], [1.4, 341], [0.62, 371], [0, 384.4]];
+const O2 = [[4.54, 0], [2.45, 0], [2.3, 2], [2.1, 4], [1.9, 1], [1.0, .6], [0.8, 1.5], [0.6, 8], [0.45, 14], [0.37, 18], [0.3, 32], [0.26, 22], [0.25, 16], [0.2, 19], [0.1, 24], [0, 21]];
+function sunLum(ya) {
+  const age = 4.5673e9 - ya;
+  if (age < 0) return null;
+  if (ya > -5e9) return 1 / (1 + .4 * (1 - age / 4.5673e9));
+  const base = 1 / (1 + .4 * (1 - 9.5673 / 4.5673));
+  const f = clamp((-ya - 5e9) / 2.6e9);
+  return base * Math.pow(2700 / base, f * f);
+}
+
+/* ---------- canvas setup ---------- */
+const canvas = document.getElementById('stage');
+const ctx = canvas.getContext('2d');
+const bufA = document.createElement('canvas'), bufB = document.createElement('canvas');
+const ctxA = bufA.getContext('2d'), ctxB = bufB.getContext('2d');
+let W = 0, H = 0, DPR = 1;
+const S = { w: 0, h: 0, cx: 0, cy: 0, R: 100, x0: 0, x1: 0, y0: 0, y1: 0, t: 0, k: 0, v: '', ya: 0 };
+const area = { x0: 0, x1: 0, y0: 0, y1: 0 }, areaT = { x0: 0, x1: 0, y0: 0, y1: 0 };
+let areaInit = false;
+
+function resize() {
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = window.innerWidth; H = window.innerHeight;
+  for (const c of [canvas, bufA, bufB]) { c.width = Math.round(W * DPR); c.height = Math.round(H * DPR); }
+  for (const c of [ctx, ctxA, ctxB]) c.setTransform(DPR, 0, 0, DPR, 0, 0);
+  measure();
+}
+const el = id => document.getElementById(id);
+function measure() {
+  const card = el('card').getBoundingClientRect(), dock = el('dock').getBoundingClientRect();
+  const ro = el('readout').getBoundingClientRect(), vi = el('vitals').getBoundingClientRect();
+  if (W > 860) { areaT.x0 = card.right + 8; areaT.x1 = W - 8; areaT.y0 = 8; areaT.y1 = dock.top - 6; }
+  else { areaT.x0 = 0; areaT.x1 = W; areaT.y0 = ro.bottom + 4; areaT.y1 = vi.top - 4; }
+  if (!areaInit) { Object.assign(area, areaT); areaInit = true; }
+}
+
+/* ---------- shared drawing helpers ---------- */
+const STARS = (() => { const r = mulberry32(7); return Array.from({ length: 560 }, () => ({ x: r(), y: r(), m: r() ** 3, tw: r() * TAU, c: r() })); })();
+function drawStars(c, amt) {
+  for (const s of STARS) {
+    const a = amt * (.18 + .82 * s.m) * (.7 + .3 * Math.sin(S.t * (.5 + s.m * 2) + s.tw));
+    if (a < .03) continue;
+    c.fillStyle = s.c < .15 ? 'rgba(170,200,255,' + a.toFixed(2) + ')' : s.c > .88 ? 'rgba(255,214,170,' + a.toFixed(2) + ')' : 'rgba(236,236,246,' + a.toFixed(2) + ')';
+    const z = .6 + s.m * 1.6; c.fillRect(s.x * S.w, s.y * S.h, z, z);
+  }
+}
+function bgSpace(c, stars = 1, col = '#05060b') { c.fillStyle = col; c.fillRect(0, 0, S.w, S.h); if (stars > 0) drawStars(c, stars); }
+function glow(c, x, y, r, col, a) {
+  if (r <= 0 || a <= 0) return;
+  const g = c.createRadialGradient(x, y, 0, x, y, r);
+  g.addColorStop(0, rgba(col, a)); g.addColorStop(.3, rgba(col, a * .38)); g.addColorStop(1, rgba(col, 0));
+  c.fillStyle = g; c.fillRect(x - r, y - r, r * 2, r * 2);
+}
+function label(c, text, x, y, col, align = 'left', size = 10.5) {
+  c.font = '400 ' + size + 'px "Martian Mono", ui-monospace, Menlo, monospace';
+  c.fillStyle = col; c.textAlign = align; c.textBaseline = 'middle'; c.fillText(text, x, y);
+}
+function sunGlow(c, lum, x, y) {
+  const r = S.R * (1.2 + .7 * Math.sqrt(lum));
+  c.globalCompositeOperation = 'lighter';
+  glow(c, x, y, r * 1.6, [255, 236, 200], .16 * Math.min(2, lum));
+  glow(c, x, y, r * .35, [255, 248, 230], .7);
+  c.globalCompositeOperation = 'source-over';
+}
+function drawBall(c, x, y, r, col) {
+  const g = c.createRadialGradient(x - r * .4, y - r * .35, r * .1, x, y, r);
+  g.addColorStop(0, rgba(mix(col, [255, 255, 255], .35), 1)); g.addColorStop(.6, rgba(col, 1)); g.addColorStop(1, rgba(mix(col, [0, 0, 0], .85), 1));
+  c.fillStyle = g; c.beginPath(); c.arc(x, y, r, 0, TAU); c.fill();
+}
+function noiseCanvas(key, w, h, fn) {
+  return once(key, () => {
+    const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+    const cx = cv.getContext('2d'); const img = cx.createImageData(w, h);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const o = (y * w + x) * 4; const px = fn(x, y); img.data[o] = px[0]; img.data[o + 1] = px[1]; img.data[o + 2] = px[2]; img.data[o + 3] = px[3]; }
+    cx.putImageData(img, 0, 0); return cv;
+  });
+}
+
+/* ---------- planet renderer ---------- */
+const TW = 256, TH = 128;
+let HEIGHT, CLOUD, HSORT;
+function genTextures() {
+  HEIGHT = new Float32Array(TW * TH); CLOUD = new Float32Array(TW * TH);
+  for (let y = 0; y < TH; y++) {
+    const la = (.5 - (y + .5) / TH) * Math.PI, cl = Math.cos(la), sl = Math.sin(la);
+    for (let x = 0; x < TW; x++) {
+      const lo = (x + .5) / TW * TAU, px = cl * Math.sin(lo), pz = cl * Math.cos(lo), py = sl, i = y * TW + x;
+      const w = fbm(px * 2 + 11, py * 2 + 3, pz * 2 + 7, 5, 3);
+      HEIGHT[i] = fbm(px * 1.6 + w * 1.4 + 20, py * 1.6 + w * 1.4, pz * 1.6 + 4, 1, 6);
+      CLOUD[i] = fbm(px * 2.6 + 1, py * 6 + 2, pz * 2.6 + 5, 9, 5);
+    }
+  }
+  for (const A of [HEIGHT, CLOUD]) { let mn = 1, mx = 0; for (const v of A) { if (v < mn) mn = v; if (v > mx) mx = v; } for (let i = 0; i < A.length; i++) A[i] = (A[i] - mn) / (mx - mn); }
+  HSORT = Float32Array.from(HEIGHT).sort();
+}
+const quant = q => HSORT[Math.floor(clamp(q, 0, .999) * HSORT.length)];
+
+const PV = {
+  magma:     { atm: [255, 110, 40], atmA: .55, clouds: 0, cc: [0, 0, 0], moon: false, bombard: 2.2 },
+  hadean:    { atm: [235, 150, 90], atmA: .5, clouds: .28, cc: [215, 195, 175], bombard: .7 },
+  goe:       { atm: [170, 205, 235], atmA: .45, clouds: .34, cc: [245, 245, 245] },
+  snowball:  { atm: [185, 215, 245], atmA: .45, clouds: .2, cc: [250, 252, 255] },
+  now:       { atm: [110, 170, 255], atmA: .6, clouds: .4, cc: [255, 255, 255], emNight: true },
+  cretaceous:{ atm: [120, 175, 255], atmA: .55, clouds: .36, cc: [255, 255, 255] },
+  dying:     { atm: [225, 120, 80], atmA: .5, clouds: .45, cc: [175, 140, 120] },
+  future:    { atm: [255, 220, 170], atmA: .25, clouds: 0, cc: [0, 0, 0], sunBoost: 1.6 }
+};
+function paint(name, h, latDeg, lo, la, i, out) {
+  const latN = latDeg + (CLOUD[i] - .5) * 14;
+  let c, e = null;
+  switch (name) {
+    case 'magma': {
+      const t = smooth(.36, .62, h);
+      c = mix([255, 150, 50], [48, 30, 26], t);
+      const crack = Math.abs(h - .56) < .012 ? 1 : 0;
+      e = mix([235, 110, 30], [0, 0, 0], t).map(v => v * .9 + crack * 120);
+      break;
+    }
+    case 'hadean': {
+      const sea = PV._q.hadean;
+      if (h < sea) c = mix([34, 74, 84], [12, 34, 46], clamp((sea - h) * 4));
+      else c = mix([100, 90, 78], [62, 56, 52], clamp((h - sea) * 6));
+      if (h > quant(.988)) e = [255, 110, 40];
+      break;
+    }
+    case 'goe': {
+      const sea = PV._q.goe;
+      c = h < sea ? mix([46, 116, 108], [18, 60, 70], clamp((sea - h) * 5)) : mix([160, 88, 56], [112, 70, 56], clamp((h - sea) * 4));
+      c = mix(c, [226, 232, 238], smooth(56, 66, latN));
+      break;
+    }
+    case 'snowball': {
+      c = mix([200, 215, 230], [240, 246, 252], h);
+      if (h < quant(.07)) c = [120, 165, 200];
+      if (latDeg < 7 && h < quant(.3)) c = mix(c, [50, 100, 135], .7);
+      break;
+    }
+    case 'now': case 'cretaceous': {
+      const sea = PV._q[name], cre = name === 'cretaceous';
+      if (h < sea) {
+        c = mix(cre ? [55, 135, 170] : [40, 105, 160], [10, 34, 84], clamp((sea - h) * 7));
+        if (sea - h < .015) c = mix(c, [80, 165, 175], .55);
+      } else {
+        const hh = (h - sea) / (1 - sea);
+        if (latN < 14) c = [38, 92, 42];
+        else if (latN < 33 && !cre) c = mix([196, 168, 116], [150, 130, 90], hh);
+        else if (latN < 56) c = [72, 112, 56];
+        else c = [64, 86, 58];
+        if (hh > .5) c = mix(c, [126, 114, 102], smooth(.5, .7, hh));
+        if (!cre && (latN > 70 || hh > .82)) c = [236, 241, 246];
+        if (name === 'now' && latDeg < 62 && hash3(i, 3, 9, 1) < .07 + .1 * (1 - hh)) e = [255, 186, 110];
+      }
+      if (!cre && latN > 76) c = [236, 241, 246];
+      break;
+    }
+    case 'dying': {
+      const sea = PV._q.dying;
+      c = h < sea ? mix([66, 98, 86], [26, 46, 46], clamp((sea - h) * 5)) : mix([146, 84, 52], [100, 60, 46], clamp((h - sea) * 4));
+      if (h >= sea) {
+        const d = Math.acos(clamp(Math.sin(la) * Math.sin(1.0) + Math.cos(la) * Math.cos(1.0) * Math.cos(lo - 1.6), -1, 1));
+        if (d < .45 && hash3(i, 7, 1, 2) < .5) e = [255, 90, 30].map(v => v * (1 - d / .45));
+      }
+      break;
+    }
+    case 'future': {
+      const flat = quant(.5);
+      c = h < flat ? mix([214, 202, 180], [178, 160, 128], clamp((flat - h) * -6 + 1)) : mix([156, 104, 66], [108, 72, 54], clamp((h - flat) * 4));
+      break;
+    }
+  }
+  out[0] = c[0]; out[1] = c[1]; out[2] = c[2];
+  out[3] = e ? e[0] : 0; out[4] = e ? e[1] : 0; out[5] = e ? e[2] : 0;
+}
+function colorize(name) {
+  return once('tex_' + name, () => {
+    if (!HEIGHT) genTextures();
+    PV._q = PV._q || { hadean: quant(.9), goe: quant(.7), now: quant(.7), cretaceous: quant(.66), dying: quant(.6) };
+    const col = new Float32Array(TW * TH * 3), em = new Float32Array(TW * TH * 3), out = [0, 0, 0, 0, 0, 0];
+    for (let y = 0; y < TH; y++) {
+      const la = (.5 - (y + .5) / TH) * Math.PI, latDeg = Math.abs(la) * 180 / Math.PI;
+      for (let x = 0; x < TW; x++) {
+        const i = y * TW + x;
+        paint(name, HEIGHT[i], latDeg, (x + .5) / TW * TAU, la, i, out);
+        col[i * 3] = out[0]; col[i * 3 + 1] = out[1]; col[i * 3 + 2] = out[2];
+        em[i * 3] = out[3]; em[i * 3 + 1] = out[4]; em[i * 3 + 2] = out[5];
+      }
+    }
+    return { col, em };
+  });
+}
+const LIGHT = (() => { const v = [-.55, .45, .7], m = Math.hypot(...v); return v.map(x => x / m); })();
+function sphereGeo(n) {
+  return once('geo' + n, () => {
+    const tilt = .41, ct = Math.cos(tilt), st = Math.sin(tilt);
+    const list = [];
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+      const nx = (x + .5) / n * 2 - 1, ny = 1 - (y + .5) / n * 2, d2 = nx * nx + ny * ny;
+      if (d2 > 1 + 3 / n) continue;
+      const dd = Math.sqrt(d2), a = clamp((1 - dd) * n * .5 + .5), nz = Math.sqrt(Math.max(0, 1 - d2));
+      const px = nx * ct + ny * st, py = -nx * st + ny * ct;
+      const la = Math.asin(clamp(py, -1, 1)), lo = Math.atan2(px, nz);
+      const dl = nx * LIGHT[0] + ny * LIGHT[1] + nz * LIGHT[2];
+      list.push([(y * n + x) * 4, ((lo / TAU + 1) % 1) * TW, Math.min(TH - 1, ((.5 - la / Math.PI) * TH) | 0), smooth(-.12, .5, dl), .5 + .5 * Math.sqrt(nz), a * 255]);
+    }
+    const L = list.length, g = { n: L, o: new Int32Array(L), u: new Float32Array(L), v: new Int32Array(L), d: new Float32Array(L), l: new Float32Array(L), a: new Uint8Array(L) };
+    list.forEach((p, j) => { g.o[j] = p[0]; g.u[j] = p[1]; g.v[j] = p[2]; g.d[j] = p[3]; g.l[j] = p[4]; g.a[j] = p[5]; });
+    return g;
+  });
+}
+const pcv = document.createElement('canvas'), pctx = pcv.getContext('2d');
+function drawPlanet(c, name, x, y, pr, o = {}) {
+  const n = clamp(Math.round(pr * 2 * Math.min(DPR, 1.4)), 48, 300) & ~1;
+  const g = sphereGeo(n), tex = colorize(name), p = PV[name];
+  if (pcv.width !== n) { pcv.width = n; pcv.height = n; }
+  const img = once('img' + n, () => pctx.createImageData(n, n)), d = img.data;
+  const rotU = ((o.rot || 0) / TAU % 1 + 1) % 1 * TW, cloudU = (((o.rot || 0) * 1.2 + S.t * .03) / TAU % 1 + 1) % 1 * TW;
+  const cov = p.clouds, c0 = 1 - cov, c1 = c0 + .14, cc = p.cc, emB = o.emBoost || 1, emNight = !!p.emNight;
+  const hz = o.haze, ha = hz ? hz[3] : 0;
+  const col = tex.col, em = tex.em;
+  for (let j = 0; j < g.n; j++) {
+    const v = g.v[j], ti3 = (v * TW + ((g.u[j] + rotU) % TW | 0)) * 3;
+    let r = col[ti3], gg = col[ti3 + 1], b = col[ti3 + 2];
+    if (cov > 0) {
+      const cv = CLOUD[v * TW + ((g.u[j] + cloudU) % TW | 0)];
+      const ca = cv <= c0 ? 0 : cv >= c1 ? .88 : (cv - c0) / (c1 - c0) * .88;
+      r += (cc[0] - r) * ca; gg += (cc[1] - gg) * ca; b += (cc[2] - b) * ca;
+    }
+    const df = g.d[j], lit = (.04 + .96 * df) * g.l[j];
+    r *= lit; gg *= lit; b *= lit;
+    const ek = (emNight ? (1 - df) * (1 - df) : 1) * emB;
+    r += em[ti3] * ek; gg += em[ti3 + 1] * ek; b += em[ti3 + 2] * ek;
+    if (ha > 0) { r += (hz[0] * (.3 + .7 * df) - r) * ha; gg += (hz[1] * (.3 + .7 * df) - gg) * ha; b += (hz[2] * (.3 + .7 * df) - b) * ha; }
+    const q = g.o[j]; d[q] = r; d[q + 1] = gg; d[q + 2] = b; d[q + 3] = g.a[j];
+  }
+  pctx.putImageData(img, 0, 0);
+  c.imageSmoothingEnabled = true;
+  c.drawImage(pcv, x - pr, y - pr, pr * 2, pr * 2);
+  // atmosphere
+  c.globalCompositeOperation = 'lighter';
+  const ag = c.createRadialGradient(x - pr * .04, y - pr * .03, pr * .9, x, y, pr * 1.2);
+  const atmA = p.atmA * (o.atmK == null ? 1 : o.atmK);
+  ag.addColorStop(0, rgba(p.atm, 0)); ag.addColorStop(.32, rgba(p.atm, atmA * .55)); ag.addColorStop(1, rgba(p.atm, 0));
+  c.fillStyle = ag; c.beginPath(); c.arc(x, y, pr * 1.2, 0, TAU); c.fill();
+  c.globalCompositeOperation = 'source-over';
+}
+function flashes(c, x, y, pr, rate, seed) {
+  c.globalCompositeOperation = 'lighter';
+  for (let j = 0; j < 3; j++) {
+    const tt = S.t * rate + j * .37, n = Math.floor(tt), age = tt - n;
+    const a = hash3(n, j, seed, 4) * TAU, rr = Math.sqrt(hash3(n, j, seed, 5)) * pr * .85;
+    const fx = x + Math.cos(a) * rr, fy = y + Math.sin(a) * rr;
+    glow(c, fx, fy, pr * .16 * (1 - age * .5), [255, 200, 140], (1 - age) * .9);
+  }
+  c.globalCompositeOperation = 'source-over';
+}
+
+/* ---------- scenes ---------- */
+const SC = {};
+
+SC.bang = (c) => {
+  const { cx, cy, k, t } = S;
+  c.fillStyle = '#000'; c.fillRect(0, 0, S.w, S.h);
+  const e = easeOut(clamp(k / .6)), maxR = Math.hypot(S.w, S.h);
+  const rad = lerp(6, maxR, e), temp = clamp(k / .9);
+  const core = mix([255, 255, 255], [255, 168, 92], temp), edge = mix([255, 236, 214], [110, 26, 8], temp);
+  const g = c.createRadialGradient(cx, cy, 0, cx, cy, rad);
+  g.addColorStop(0, rgba(core, 1)); g.addColorStop(.35, rgba(mix(core, edge, .5), .8)); g.addColorStop(1, rgba(edge, 0));
+  c.fillStyle = g; c.fillRect(0, 0, S.w, S.h);
+  const P = once('bangP', () => { const r = mulberry32(11); return Array.from({ length: 900 }, () => ({ a: r() * TAU, s: .05 + r() * .95, j: r() * TAU })); });
+  c.globalCompositeOperation = 'lighter';
+  const pc = mix([255, 250, 240], [255, 190, 120], temp);
+  c.fillStyle = rgba(pc, .55);
+  for (const p of P) {
+    const r = rad * .85 * p.s + Math.sin(t * 3 + p.j) * 4, a = p.a + Math.sin(t * .5 + p.j) * .04;
+    c.fillRect(cx + Math.cos(a) * r, cy + Math.sin(a) * r, 1.4, 1.4);
+  }
+  c.globalCompositeOperation = 'source-over';
+  if (k < .08) { c.fillStyle = rgba([255, 255, 255], 1 - k / .08); c.fillRect(0, 0, S.w, S.h); }
+};
+
+SC.nuclei = (c) => {
+  const { cx, cy, k, t, R } = S;
+  const g = c.createRadialGradient(cx, cy, 0, cx, cy, Math.hypot(S.w, S.h) * .6);
+  g.addColorStop(0, rgba(mix([120, 52, 24], [70, 30, 16], k), 1)); g.addColorStop(1, '#0a0503');
+  c.fillStyle = g; c.fillRect(0, 0, S.w, S.h);
+  const hw = (S.x1 - S.x0) * .45, hh = (S.y1 - S.y0) * .34, oy = cy - (S.y1 - S.y0) * .06;
+  const D = once('nuc', () => {
+    const r = mulberry32(21);
+    return {
+      H: Array.from({ length: 190 }, () => ({ x: r() * 2 - 1, y: r() * 2 - 1, ph: r() * TAU, sp: .3 + r() * .5 })),
+      He: Array.from({ length: 17 }, (_, i) => ({ x: r() * 2 - 1, y: r() * 2 - 1, ph: r() * TAU, n: i === 0 ? 7 : 4, parts: Array.from({ length: i === 0 ? 7 : 4 }, () => ({ a: r() * TAU, d: .6 + r() * .8 })) }))
+    };
+  });
+  const nr = Math.max(2, R * .016);
+  const pt = (x, y, col) => { c.fillStyle = col; c.beginPath(); c.arc(x, y, nr, 0, TAU); c.fill(); };
+  for (const p of D.H) pt(cx + (p.x + .03 * Math.sin(t * p.sp + p.ph)) * hw, oy + (p.y + .04 * Math.cos(t * p.sp * 1.3 + p.ph)) * hh, 'rgba(255,120,104,.85)');
+  const fuse = ease(clamp((k - .12) / .45));
+  for (const h of D.He) {
+    const hx = cx + (h.x + .03 * Math.sin(t * .4 + h.ph)) * hw, hy = oy + (h.y + .04 * Math.cos(t * .5 + h.ph)) * hh;
+    const spread = lerp(R * .22, nr * 1.05, fuse);
+    if (fuse > .9) { c.globalCompositeOperation = 'lighter'; glow(c, hx, hy, nr * 6, [255, 210, 150], .25 * (fuse - .9) * 10); c.globalCompositeOperation = 'source-over'; }
+    h.parts.forEach((q, j) => {
+      const a = q.a * (1 - fuse) + (j / h.n) * TAU * fuse + t * .3 * (1 - fuse);
+      pt(hx + Math.cos(a) * spread * q.d * (fuse > .9 ? 1 : 1.5), hy + Math.sin(a) * spread * q.d * (fuse > .9 ? 1 : 1.5), j % 2 ? 'rgba(180,196,226,.9)' : 'rgba(255,120,104,.9)');
+    });
+  }
+  // composition bar
+  const a = smooth(.45, .75, k);
+  if (a > 0) {
+    const bw = Math.min(440, (S.x1 - S.x0) * .8), bx = cx - bw / 2, by = S.y1 - 42;
+    c.globalAlpha = a;
+    c.fillStyle = 'rgba(255,120,104,.9)'; c.fillRect(bx, by, bw * .75, 6);
+    c.fillStyle = 'rgba(180,196,226,.9)'; c.fillRect(bx + bw * .75 + 2, by, bw * .25 - 2, 6);
+    label(c, 'HYDROGEN 75%', bx, by + 18, 'rgba(255,170,160,.95)');
+    label(c, 'HELIUM 25%', bx + bw, by + 18, 'rgba(200,214,240,.95)', 'right');
+    label(c, 'BY MASS · LITHIUM: A TRACE · NOTHING HEAVIER', cx, by - 14, 'rgba(233,229,217,.55)', 'center', 9.5);
+    c.globalAlpha = 1;
+  }
+};
+
+const CMB_STOPS = [[0, [8, 24, 110]], [.3, [40, 110, 220]], [.5, [236, 236, 226]], [.7, [244, 150, 52]], [1, [150, 18, 10]]];
+function cmbColor(v) { for (let i = 1; i < CMB_STOPS.length; i++) if (v <= CMB_STOPS[i][0]) { const [a, ca] = CMB_STOPS[i - 1], [b, cb] = CMB_STOPS[i]; return mix(ca, cb, (v - a) / (b - a)); } return CMB_STOPS[4][1]; }
+SC.cmb = (c) => {
+  const { cx, k, t, R } = S;
+  bgSpace(c, 0, '#020205');
+  const tex = noiseCanvas('cmb', 320, 160, (x, y) => {
+    const la = (.5 - (y + .5) / 160) * Math.PI, lo = (x + .5) / 320 * TAU;
+    const px = Math.cos(la) * Math.sin(lo), pz = Math.cos(la) * Math.cos(lo), py = Math.sin(la);
+    const v = clamp((fbm(px * 9, py * 9, pz * 9, 31, 4) - .5) * 2.6 + .5);
+    return [...cmbColor(v), 255];
+  });
+  const aw = S.x1 - S.x0, ah = S.y1 - S.y0, cy = S.cy - ah * .05;
+  const ew = Math.min(aw * .9, ah * 1.5), eh = ew / 2;
+  const grow = lerp(.85, 1, easeOut(clamp(k / .5)));
+  c.save(); c.beginPath(); c.ellipse(cx, cy, ew / 2 * grow, eh / 2 * grow, 0, 0, TAU); c.clip();
+  c.imageSmoothingEnabled = true;
+  c.drawImage(tex, cx - ew / 2 * grow, cy - eh / 2 * grow, ew * grow, eh * grow);
+  c.restore();
+  c.strokeStyle = 'rgba(233,229,217,.25)'; c.lineWidth = 1; c.beginPath(); c.ellipse(cx, cy, ew / 2 * grow, eh / 2 * grow, 0, 0, TAU); c.stroke();
+  const glowA = 1 - smooth(.08, .45, k);
+  if (glowA > 0) {
+    c.fillStyle = rgba([255, 150, 70], glowA * .96); c.fillRect(0, 0, S.w, S.h);
+    c.globalCompositeOperation = 'lighter'; glow(c, cx, cy, R * 3, [255, 210, 150], glowA * .5 * (.9 + .1 * Math.sin(t * 2))); c.globalCompositeOperation = 'source-over';
+  }
+  const ly = cy + eh / 2 * grow + 26;
+  if (k < .4) label(c, 'THEN: ABOUT 3,000 K, A UNIFORM ORANGE GLOW', cx, ly, rgba([60, 20, 0], .8 * glowA + .2), 'center');
+  else {
+    c.globalAlpha = smooth(.4, .55, k);
+    label(c, 'TODAY: 2.725 K, SEEN IN MICROWAVES. HOT AND COLD SPOTS DIFFER BY ~0.001%', cx, ly, 'rgba(233,229,217,.7)', 'center', Math.min(10.5, aw / 70));
+    c.globalAlpha = 1;
+  }
+};
+
+SC.firststars = (c) => {
+  const { k, t, R } = S;
+  bgSpace(c, 0, '#030306');
+  const fog = noiseCanvas('fog', 200, 120, (x, y) => { const v = fbm(x / 26, y / 26, 3, 41, 5); return [90, 50, 40, clamp((v - .4) * 3) * 120]; });
+  c.globalAlpha = .7; c.drawImage(fog, 0, 0, S.w, S.h); c.globalAlpha = 1;
+  const ST = once('fs', () => { const r = mulberry32(51); return Array.from({ length: 15 }, (_, i) => ({ x: r(), y: r(), k0: .03 + i / 15 * .7 + r() * .04, ex: r() < .55, sz: .6 + r() * .7, ph: r() * TAU })); });
+  c.globalCompositeOperation = 'lighter';
+  for (const s of ST) {
+    if (k < s.k0) continue;
+    const x = lerp(S.x0 + 30, S.x1 - 30, s.x), y = lerp(S.y0 + 30, S.y1 - 30, s.y), age = k - s.k0;
+    const br = R * .7 * s.sz * easeOut(clamp(age / .5));
+    const bg = c.createRadialGradient(x, y, br * .2, x, y, br);
+    bg.addColorStop(0, 'rgba(70,110,220,.0)'); bg.addColorStop(.8, 'rgba(70,120,230,.10)'); bg.addColorStop(1, 'rgba(110,160,255,.0)');
+    c.fillStyle = bg; c.beginPath(); c.arc(x, y, br, 0, TAU); c.fill();
+    const boom = s.ex ? clamp((age - .22) / .3) : 0;
+    if (boom > 0 && boom < 1) {
+      glow(c, x, y, R * .5 * s.sz * (1 + boom), [255, 240, 220], (1 - boom) * .9);
+      c.strokeStyle = rgba([255, 170, 120], (1 - boom) * .6); c.lineWidth = 2;
+      c.beginPath(); c.arc(x, y, R * .35 * s.sz * easeOut(boom), 0, TAU); c.stroke();
+    } else if (boom === 0) {
+      const ig = clamp(age / .05), tw = .85 + .15 * Math.sin(t * 3 + s.ph);
+      glow(c, x, y, R * .22 * s.sz * ig * tw, [160, 200, 255], .8);
+      glow(c, x, y, R * .05 * s.sz * ig, [255, 255, 255], 1);
+      c.strokeStyle = rgba([190, 215, 255], .35 * ig); c.lineWidth = 1;
+      const sl = R * .28 * s.sz * ig; c.beginPath(); c.moveTo(x - sl, y); c.lineTo(x + sl, y); c.moveTo(x, y - sl); c.lineTo(x, y + sl); c.stroke();
+    } else glow(c, x, y, R * .08 * s.sz, [140, 90, 200], .25);
+  }
+  c.globalCompositeOperation = 'source-over';
+};
+
+/* galaxy */
+function galaxyParts(seed, n) {
+  const r = mulberry32(seed), clumps = Array.from({ length: 11 }, () => ({ a: r() * TAU, d: .6 + r() * .9, s: .1 + r() * .2 }));
+  return Array.from({ length: n }, () => {
+    const bulge = r() < .2, cl = clumps[(r() * clumps.length) | 0];
+    let rad, ang, elev, col;
+    if (bulge) { rad = Math.abs(gauss(r)) * .16; ang = r() * TAU; elev = gauss(r) * .07; col = [255, 222, 176]; }
+    else {
+      const arm = (r() * 2) | 0; rad = .07 + Math.pow(r(), .85) * .93;
+      ang = arm * Math.PI + Math.log(rad) * 2.4 + gauss(r) * .32; elev = gauss(r) * .015;
+      col = rad < .28 ? [255, 228, 196] : r() < .25 ? [255, 160, 186] : [170, 202, 255];
+    }
+    return { rad, ang, elev, col: rgba(col, .55), s: r() < .05 ? 2.2 : 1.2, ca: cl.a, cd: cl.d, cs: cl.s, ox: gauss(r) * .07, oy: gauss(r) * .07, ph: r() * TAU, bulge };
+  });
+}
+function drawGalaxy(c, parts, gx, gy, sc, tilt, rot, spin, asm = 1) {
+  const cr = Math.cos(rot), sr = Math.sin(rot), t = S.t;
+  c.globalCompositeOperation = 'lighter';
+  glow(c, gx, gy, sc * .5, [255, 214, 160], .5 * asm);
+  for (const p of parts) {
+    const a = p.ang + spin * (p.bulge ? 1.5 : 1) + .02 * t / (p.rad + .25);
+    let X = Math.cos(a) * p.rad, Y = Math.sin(a) * p.rad * tilt + p.elev;
+    let x = X * cr - Y * sr, y = X * sr + Y * cr;
+    if (asm < 1) {
+      const ca = p.ca + t * .07;
+      const qx = Math.cos(ca) * p.cd + p.ox * (1 + p.cs * 3), qy = Math.sin(ca) * p.cd * .6 + p.oy * (1 + p.cs * 3);
+      const e = ease(asm); x = lerp(qx, x, e); y = lerp(qy, y, e);
+    }
+    c.fillStyle = p.col; c.fillRect(gx + x * sc, gy + y * sc, p.s, p.s);
+  }
+  c.globalCompositeOperation = 'source-over';
+}
+SC.galaxy = (c) => {
+  const { cx, cy, k, t, R, v } = S;
+  bgSpace(c, .55);
+  const MW = once('mw', () => galaxyParts(3, 3200));
+  if (v === 'assemble') {
+    drawGalaxy(c, MW, cx, cy, R * 1.45, .42, -.3, t * .05, clamp(k * 1.15));
+    if (k < .5) { c.globalCompositeOperation = 'lighter'; for (let i = 0; i < 6; i++) glow(c, cx + Math.cos(i * 1.7 + t * .07) * R * 1.1, cy + Math.sin(i * 1.7 + t * .07) * R * .6, R * .25, [150, 180, 255], .15 * (1 - k * 2)); c.globalCompositeOperation = 'source-over'; }
+  } else if (v === 'merger') {
+    drawGalaxy(c, MW, cx, cy, R * 1.45, .42, -.3, t * .05);
+    const D = once('dwarf', () => { const r = mulberry32(17); return Array.from({ length: 520 }, () => ({ d: r() * .5, ox: gauss(r) * .05, oy: gauss(r) * .05, h: r(), hp: r() * TAU })); });
+    const sc = R * 1.45, rot = -.3, cr = Math.cos(rot), sr = Math.sin(rot);
+    c.globalCompositeOperation = 'lighter'; c.fillStyle = 'rgba(255,196,130,.6)';
+    let hx = 0, hy = 0;
+    for (const p of D) {
+      const s = k * 1.35 - p.d; let X, Y;
+      if (s <= 1) { const ss = Math.max(0, s), rho = 2.1 * (1 - ss) + .12, ph = .9 + ss * 4.6; X = Math.cos(ph) * rho + p.ox * (1 + ss * 5); Y = Math.sin(ph) * rho * .5 + p.oy * (1 + ss * 3); }
+      else { const rho = .3 + p.h * .8, ph = p.hp + t * .04; X = Math.cos(ph) * rho; Y = Math.sin(ph) * rho * .75; }
+      const x = X * cr - Y * sr, y = X * sr + Y * cr;
+      if (p === D[0]) { hx = x; hy = y; }
+      c.fillRect(cx + x * sc, cy + y * sc, 1.4, 1.4);
+    }
+    c.globalCompositeOperation = 'source-over';
+    if (k < .55) label(c, 'GAIA–ENCELADUS', cx + hx * sc + 16, cy + hy * sc - 14, 'rgba(255,210,160,.8)');
+  } else {
+    const AN = once('and', () => galaxyParts(29, 2600));
+    const gx = cx - R * .55, gy = cy + R * .2;
+    drawGalaxy(c, MW, gx, gy, R * .85, .42, -.25, t * .05);
+    const e = ease(k);
+    const ax = lerp(cx + R * 1.5, cx + R * .55, e), ay = lerp(cy - R * .75, cy - R * .2, e), asc = lerp(R * .6, R * 1.15, e);
+    drawGalaxy(c, AN, ax, ay, asc, .3, .75, -t * .04);
+    const sa = .2 + t * .05 + .02 * t / (.6 + .25), sx = Math.cos(sa) * .6, sy = Math.sin(sa) * .6 * .42, rr = -.25;
+    const px = gx + (sx * Math.cos(rr) - sy * Math.sin(rr)) * R * .85, py = gy + (sx * Math.sin(rr) + sy * Math.cos(rr)) * R * .85;
+    c.strokeStyle = 'rgba(255,207,107,.9)'; c.lineWidth = 1.2; c.beginPath(); c.arc(px, py, 6, 0, TAU); c.stroke();
+    label(c, 'SUN', px + 10, py + 12, 'rgba(255,207,107,.95)');
+    label(c, 'MILKY WAY', gx - R * .5, gy + R * .55, 'rgba(233,229,217,.6)');
+    label(c, 'ANDROMEDA', ax + asc * .45, ay - asc * .42, 'rgba(233,229,217,.6)');
+  }
+};
+
+SC.supernova = (c) => {
+  const { cx, cy, k, t, R } = S;
+  bgSpace(c, .8);
+  const P = once('sn', () => { const r = mulberry32(61); return Array.from({ length: 1300 }, () => { const s = .25 + Math.pow(r(), .6) * .75; return { a: r() * TAU, s, w: r() * TAU, l: s < .5 ? 0 : s < .75 ? 1 : 2 }; }); });
+  const cols = [[255, 120, 70], [255, 212, 120], [120, 200, 255]];
+  const hit = .22;
+  c.globalCompositeOperation = 'lighter';
+  if (k < hit) {
+    const pre = k / hit, shrink = pre > .8 ? 1 - (pre - .8) * 4 : 1;
+    glow(c, cx, cy, R * .55 * shrink * (1 + .05 * Math.sin(t * 7)), [150, 190, 255], .7);
+    glow(c, cx, cy, R * .1 * shrink, [255, 255, 255], 1);
+  } else {
+    const e = easeOut(clamp((k - hit) / (1 - hit))), R0 = R * (.08 + 1.42 * e) * (1 + .015 * Math.sin(t * .3));
+    for (const p of P) {
+      const rm = 1 + .12 * Math.sin(p.a * 7 + 1.3) + .08 * Math.sin(p.a * 13 + p.w) + .05 * Math.sin(p.a * 29);
+      const r = R0 * p.s * rm;
+      c.fillStyle = rgba(cols[p.l], .5 * (1 - e * .35));
+      c.fillRect(cx + Math.cos(p.a) * r, cy + Math.sin(p.a) * r, 1.6, 1.6);
+    }
+    glow(c, cx, cy, R0 * .9, [255, 140, 90], .18);
+    glow(c, cx, cy, R * .04, [200, 230, 255], 1);
+    const fl = 1 - clamp((k - hit) / .09);
+    if (fl > 0) { glow(c, cx, cy, R * 3 * (1 - fl * .5), [255, 250, 240], fl); }
+    c.globalCompositeOperation = 'source-over';
+    const la = smooth(.42, .6, k);
+    if (la > 0) {
+      c.globalAlpha = la;
+      [['Fe', .52, -.7, 0], ['Si', .76, 2.3, 1], ['O', 1.02, 3.9, 2], ['Mg', .9, .9, 1], ['Ca', .7, 5.2, 1]].forEach(([s, f, a, l]) => {
+        label(c, s, cx + Math.cos(a) * R0 * f, cy + Math.sin(a) * R0 * f, rgba(mix(cols[l], [255, 255, 255], .3), .95), 'center', 13);
+      });
+      c.globalAlpha = 1;
+    }
+  }
+  c.globalCompositeOperation = 'source-over';
+};
+
+SC.kilonova = (c) => {
+  const { cx, cy, k, t, R } = S;
+  bgSpace(c, .8);
+  const hit = .38, km = clamp(k / hit);
+  c.globalCompositeOperation = 'lighter';
+  const rip = km < 1 ? .25 + .75 * km : Math.max(0, 1 - (k - hit) * 3);
+  for (let j = 0; j < 9; j++) {
+    const rr = ((t * R * .45 + j * R * .3) % (R * 2.7));
+    c.strokeStyle = rgba([150, 180, 255], .14 * rip * (1 - rr / (R * 2.7))); c.lineWidth = 1.2;
+    c.beginPath(); c.ellipse(cx, cy, rr, rr * .5, 0, 0, TAU); c.stroke();
+  }
+  if (km < 1) {
+    const sep = R * .55 * Math.pow(1 - km, .35), ph = 34 * (1 - Math.pow(1 - km, .6)) + t * .6;
+    for (const sgn of [1, -1]) {
+      const x = cx + Math.cos(ph) * sep * sgn, y = cy + Math.sin(ph) * sep * .5 * sgn;
+      glow(c, x, y, R * .14, [170, 200, 255], .7); glow(c, x, y, R * .03, [255, 255, 255], 1);
+    }
+  } else {
+    const e = easeOut(clamp((k - hit) / (1 - hit)));
+    const fl = 1 - clamp((k - hit) / .1);
+    if (fl > 0) glow(c, cx, cy, R * 3, [255, 245, 235], fl);
+    glow(c, cx, cy - R * .9 * e, R * .7 * e, [110, 150, 255], .35);
+    glow(c, cx, cy + R * .9 * e, R * .7 * e, [110, 150, 255], .35);
+    const tg = c.createRadialGradient(cx, cy, R * .2 * e, cx, cy, R * 1.3 * e);
+    tg.addColorStop(0, 'rgba(255,90,70,0)'); tg.addColorStop(.55, 'rgba(255,80,70,.45)'); tg.addColorStop(1, 'rgba(160,40,120,0)');
+    c.save(); c.translate(cx, cy); c.scale(1, .38); c.translate(-cx, -cy);
+    c.fillStyle = tg; c.beginPath(); c.arc(cx, cy, R * 1.3 * e + 1, 0, TAU); c.fill(); c.restore();
+    const G = once('gold', () => { const r = mulberry32(71); return Array.from({ length: 360 }, () => ({ a: r() * TAU, s: .2 + r() * .9, tw: r() * TAU, f: .35 + r() * .65 })); });
+    for (const p of G) {
+      const rr = R * 1.5 * e * p.s, a = .5 + .5 * Math.sin(t * 4 + p.tw);
+      c.fillStyle = rgba([255, 205, 90], .7 * a); c.fillRect(cx + Math.cos(p.a) * rr, cy + Math.sin(p.a) * rr * p.f, 1.8, 1.8);
+    }
+    glow(c, cx, cy, R * .06, [255, 255, 255], .9);
+    c.globalCompositeOperation = 'source-over';
+    const la = smooth(.55, .7, k);
+    if (la > 0) {
+      c.globalAlpha = la;
+      [['Au', 1.1, -.4], ['Pt', 1.25, 2.6], ['U', .95, 4.3], ['I', 1.2, 1.4]].forEach(([s, f, a]) => label(c, s, cx + Math.cos(a) * R * f * e, cy + Math.sin(a) * R * f * e * .6, 'rgba(255,220,140,.95)', 'center', 13));
+      c.globalAlpha = 1;
+    }
+  }
+  c.globalCompositeOperation = 'source-over';
+};
+
+SC.pneb = (c) => {
+  const { cx, cy, k, t, R, v } = S;
+  bgSpace(c, .7);
+  const fin = v === 'finale';
+  const P = once('pn', () => { const r = mulberry32(81); return Array.from({ length: 1800 }, () => ({ a: r() * TAU, u: Math.pow(r(), .7), ph: r() * TAU, f: r() })); });
+  const e = .55 + .45 * easeOut(k) + .01 * Math.sin(t * .2);
+  const inner = fin ? [255, 200, 120] : [80, 220, 200], outer = fin ? [255, 110, 90] : [255, 90, 100];
+  c.globalCompositeOperation = 'lighter';
+  glow(c, cx, cy, R * 1.8 * e, outer, .22);
+  glow(c, cx, cy, R * .75 * e, inner, .28);
+  for (const p of P) {
+    const r = R * e * (.6 + .4 * p.u) * (1 + .08 * Math.sin(p.a * 5 + p.ph) + .04 * Math.sin(p.a * 11 + t * .2));
+    c.fillStyle = rgba(mix(inner, outer, p.u), .3);
+    c.fillRect(cx + Math.cos(p.a) * r, cy + Math.sin(p.a) * r * .8, 2, 2);
+  }
+  glow(c, cx, cy, R * .14, [220, 235, 255], .9); glow(c, cx, cy, R * .025, [255, 255, 255], 1);
+  c.globalCompositeOperation = 'source-over';
+  const syms = fin ? ['Fe', 'O', 'Si', 'C', 'Mg', 'N', 'Au', 'Ca'] : ['C', 'N', 'C', 'Ba', 'C', 'N', 'Pb', 'C'];
+  syms.forEach((s, i) => {
+    const ph = ((t * .05 + i / syms.length) % 1), a = i * 2.4 + .3;
+    const rr = R * (.25 + ph * 1.6);
+    c.globalAlpha = Math.sin(ph * Math.PI) * smooth(0, .25, k);
+    label(c, s, cx + Math.cos(a) * rr, cy + Math.sin(a) * rr * .8, fin ? 'rgba(255,225,190,.95)' : 'rgba(200,255,240,.95)', 'center', 12);
+  });
+  c.globalAlpha = 1;
+  if (fin) label(c, 'WHITE DWARF', cx + R * .12, cy + R * .2, 'rgba(233,229,217,.55)');
+};
+
+SC.cloud = (c) => {
+  const { cx, cy, k, t, R } = S;
+  bgSpace(c, .6);
+  c.globalCompositeOperation = 'lighter'; glow(c, cx, cy, R * 2.4, [190, 70, 120], .35); c.globalCompositeOperation = 'source-over';
+  const dust = noiseCanvas('dust', 256, 160, (x, y) => { const v = fbm(x / 34, y / 34, 7, 91, 5); const d = Math.hypot((x - 128) / 128, (y - 80) / 80); return [26, 14, 12, clamp((v - .38) * 3.2) * 255 * clamp(1.25 - d)]; });
+  const dw = R * 3.4, dh = R * 2.2;
+  c.drawImage(dust, cx - dw / 2 + Math.sin(t * .05) * 6, cy - dh / 2, dw, dh);
+  const src = { x: cx - R * 2.6, y: cy + R * .35 };
+  const rs = R * (.3 + 3.1 * easeOut(clamp(k / .62)));
+  c.globalCompositeOperation = 'lighter';
+  if (k < .15) glow(c, src.x, src.y, R * 1.2, [255, 240, 220], 1 - k / .15);
+  for (let i = 0; i < 4; i++) { c.strokeStyle = rgba([150, 220, 255], .09 + i * .05); c.lineWidth = (4 - i) * R * .025; c.beginPath(); c.arc(src.x, src.y, rs, -1.1, 1.1); c.stroke(); }
+  const AL = once('al', () => { const r = mulberry32(93); return Array.from({ length: 140 }, () => ({ a: (r() - .5) * 1.4, d: r() * .35, j: r() * TAU, f: r() })); });
+  const inK = clamp((k - .5) / .5);
+  let lab = null;
+  for (const p of AL) {
+    let x = src.x + Math.cos(p.a) * (rs - p.d * R), y = src.y + Math.sin(p.a) * (rs - p.d * R);
+    if (inK > 0) { const e = ease(clamp(inK * (1 + p.f))); x = lerp(x, cx + Math.cos(p.j + t) * R * .3 * p.f, e * .6); y = lerp(y, cy + Math.sin(p.j + t) * R * .3 * p.f, e * .6); }
+    c.fillStyle = 'rgba(120,255,230,.75)'; c.fillRect(x, y, 2, 2);
+    if (p === AL[3]) lab = [x, y];
+  }
+  if (inK > 0) {
+    const SW = once('sw', () => { const r = mulberry32(95); return Array.from({ length: 360 }, () => ({ a: r() * TAU, r0: .25 + r() })); });
+    c.fillStyle = 'rgba(255,170,110,.55)';
+    for (const p of SW) {
+      const rr = R * .9 * p.r0 * (1 - ease(inK) * .8) + R * .04, a = p.a + t * .4 / (rr / R + .15);
+      c.fillRect(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr * .55, 1.6, 1.6);
+    }
+    glow(c, cx, cy, R * .35 * inK, [255, 190, 120], .9 * inK);
+  }
+  c.globalCompositeOperation = 'source-over';
+  if (lab && k > .2) label(c, '²⁶Al', lab[0] + 8, lab[1] - 10, 'rgba(150,255,235,.95)', 'left', 11);
+  if (k < .35) label(c, 'SUPERNOVA', src.x + R * .2, src.y + R * .55, 'rgba(233,229,217,.55)');
+};
+
+SC.disk = (c) => {
+  const { cx, cy, k, t, R, v } = S;
+  bgSpace(c, .6);
+  const P = once('disk', () => { const r = mulberry32(101); return Array.from({ length: 2600 }, () => ({ r: .14 + 2.1 * Math.pow(r(), 1.25), a: r() * TAU, e: (r() * 2 - 1), s: r() < .06 ? 2 : 1.3 })); });
+  const ign = v === 'ignite', flat = ign ? ease(clamp(k * 1.3)) : 1, sb = ign ? .25 + .75 * ease(clamp(k * 1.2)) : 1;
+  const sc = R * .92, sq = .32;
+  c.globalCompositeOperation = 'lighter';
+  glow(c, cx, cy, R * .9 * sb, [255, 210, 150], .35);
+  if (ign) { glow(c, cx, cy - R * .6, R * .35, [170, 200, 255], .25 * sb); glow(c, cx, cy + R * .6, R * .35, [170, 200, 255], .25 * sb); }
+  const jupR = 1.45, gap = v === 'jupiter';
+  for (const p of P) {
+    if (gap && Math.abs(p.r - jupR) < .11) continue;
+    const ang = p.a + t * .55 / Math.pow(p.r, 1.5);
+    const x = Math.cos(ang) * p.r, y = Math.sin(ang) * p.r * sq + p.e * p.r * .85 * (1 - flat);
+    const col = p.r < .45 ? [255, 222, 170] : p.r < 1 ? [232, 150, 92] : [170, 202, 245];
+    c.fillStyle = rgba(col, .45); c.fillRect(cx + x * sc, cy + y * sc, p.s, p.s);
+  }
+  glow(c, cx, cy, R * .22 * sb, [255, 244, 220], 1);
+  c.globalCompositeOperation = 'source-over';
+  c.globalAlpha = flat;
+  c.setLineDash([3, 5]); c.strokeStyle = 'rgba(170,210,255,.55)'; c.lineWidth = 1;
+  c.beginPath(); c.ellipse(cx, cy, sc, sc * sq, 0, 0, TAU); c.stroke(); c.setLineDash([]);
+  label(c, 'SNOW LINE', cx + sc * .72, cy + sc * sq * .72 + 14, 'rgba(180,215,255,.85)');
+  if (gap) {
+    const ja = .8 + t * .55 / Math.pow(jupR, 1.5), jx = cx + Math.cos(ja) * jupR * sc, jy = cy + Math.sin(ja) * jupR * sc * sq;
+    c.globalCompositeOperation = 'lighter'; glow(c, jx, jy, R * .18, [255, 200, 140], .35); c.globalCompositeOperation = 'source-over';
+    drawBall(c, jx, jy, R * .055, [214, 170, 120]);
+    label(c, 'JUPITER', jx + R * .09, jy - R * .06, 'rgba(255,215,160,.95)');
+    label(c, 'INNER: DRY ROCK AND METAL', cx, cy + sc * sq + 34, 'rgba(255,190,140,.8)', 'center');
+    label(c, 'OUTER: ICE-RICH', cx, cy - sc * sq * 2.2 - 26, 'rgba(180,215,255,.8)', 'center');
+  }
+  c.globalAlpha = 1;
+};
+
+SC.planet = (c) => {
+  const { cx, cy, t, R, v, ya } = S;
+  const p = PV[v];
+  bgSpace(c, .85);
+  const lum = sunLum(ya) || 1;
+  sunGlow(c, lum * (p.sunBoost || 1), cx - R * 2.3, cy - R * 1.6);
+  const pr = R * .88, gy = ya / 1e9;
+  const day = ya >= 0 ? interpT(DAY, gy) : 24;
+  const rot = t * .1 * (24 / day) + 1.1;
+  let moon = null;
+  if (p.moon !== false) {
+    const dist = ya >= 0 ? interpT(MOON, gy) : 384.4, a = pr * (1.35 + .8 * dist / 384.4), ang = t * .16 + .5;
+    moon = { x: cx + Math.cos(ang) * a, y: cy + Math.sin(ang) * a * .26, z: Math.sin(ang), r: pr * .16 };
+  }
+  if (moon && moon.z < 0) drawBall(c, moon.x, moon.y, moon.r, [170, 168, 160]);
+  drawPlanet(c, v, cx, cy, pr, { rot });
+  if (p.bombard) flashes(c, cx, cy, pr, p.bombard, v.length);
+  if (moon && moon.z >= 0) drawBall(c, moon.x, moon.y, moon.r, [170, 168, 160]);
+  if (v === 'now') label(c, 'MOON NOT TO SCALE', S.x1 - 12, S.y1 - 12, 'rgba(233,229,217,.35)', 'right', 9);
+  if (v === 'magma') {
+    const B = once('acc', () => { const r = mulberry32(111); return Array.from({ length: 8 }, () => ({ a: r() * TAU, sp: .12 + r() * .1, o: r() })); });
+    c.globalCompositeOperation = 'lighter';
+    for (const b of B) {
+      const ph = (t * b.sp + b.o) % 1, rr = pr * (3 - 2 * ph);
+      const x = cx + Math.cos(b.a) * rr, y = cy + Math.sin(b.a) * rr * .7;
+      glow(c, x, y, R * .05, [255, 210, 160], .6 * Math.sin(ph * Math.PI));
+    }
+    c.globalCompositeOperation = 'source-over';
+  }
+};
+
+SC.impact = (c) => {
+  const { cx, cy, k, t, R, v } = S;
+  bgSpace(c, .85);
+  if (v === 'theia') {
+    sunGlow(c, .72, cx - R * 2.3, cy - R * 1.6);
+    const pr = R * .75, ex = cx - R * .1, ey = cy + R * .05, hit = .3, tr = pr * .53;
+    const dir = [.62, -.78], ctc = { x: ex + dir[0] * pr, y: ey + dir[1] * pr };
+    const heat = k > hit ? Math.exp(-(k - hit) * 4) : 0;
+    drawPlanet(c, 'magma', ex, ey, pr, { rot: t * .5, emBoost: 1 + 2.5 * heat });
+    if (k < hit + .05) {
+      const m = clamp(k / hit), e = m * m, sh = k > hit ? 1 - (k - hit) / .05 : 1;
+      const tx = lerp(ex + R * 3.3, ctc.x + dir[0] * tr * .7, e), ty = lerp(ey - R * 2.3, ctc.y + dir[1] * tr * .7, e);
+      drawBall(c, tx, ty, tr * sh, [150, 112, 92]);
+      label(c, 'THEIA', tx + tr + 8, ty - tr * .4, 'rgba(233,229,217,.7)');
+    }
+    if (k > hit) {
+      const D = once('deb', () => { const r = mulberry32(121); return Array.from({ length: 700 }, () => { const a = -1.2 + gauss(r) * .7; return { vx: Math.cos(a), vy: Math.sin(a), r: 1.25 + r() * 1.3, a: r() * TAU, cf: .7 + r() * .3, o: gauss(r) * .1 }; }); });
+      const m = clamp((k - hit) / .35), cK = ease(clamp((k - .62) / .33)), mA = t * .22;
+      const mx = ex + Math.cos(mA) * pr * 1.9, my = ey + Math.sin(mA) * pr * 1.9 * .32;
+      c.globalCompositeOperation = 'lighter';
+      for (const p of D) {
+        const ang = p.a + t * .5 / p.r, rr = p.r * pr;
+        const ox = ex + Math.cos(ang) * rr, oy = ey + Math.sin(ang) * rr * .32;
+        const sx = ctc.x + p.vx * m * pr * 1.2, sy = ctc.y + p.vy * m * pr * 1.2;
+        const em = ease(m);
+        let x = lerp(sx, ox, em), y = lerp(sy, oy, em);
+        x = lerp(x, mx + p.o * pr, cK * p.cf); y = lerp(y, my + p.o * pr * .4, cK * p.cf);
+        if (Math.sin(ang) < 0 && Math.hypot(x - ex, y - ey) < pr && em > .6) continue;
+        c.fillStyle = rgba(mix([255, 170, 90], [190, 180, 170], m), .7);
+        c.fillRect(x, y, 1.7, 1.7);
+      }
+      const fl = 1 - clamp((k - hit) / .14);
+      if (fl > 0) glow(c, ctc.x, ctc.y, pr * 1.8, [255, 240, 210], fl);
+      c.globalCompositeOperation = 'source-over';
+      if (cK > 0) {
+        c.globalAlpha = cK; drawBall(c, mx, my, pr * .27 * (.4 + .6 * cK), [168, 160, 150]); c.globalAlpha = 1;
+        if (cK > .6) label(c, 'MOON', mx + pr * .32, my - 6, 'rgba(233,229,217,.75)');
+      }
+    }
+  } else {
+    sunGlow(c, 1, cx - R * 2.3, cy - R * 1.6);
+    const pr = R * .88, hit = .28, sx = cx - pr * .22, sy = cy - pr * .12;
+    const winter = smooth(hit + .05, .85, k) * .55;
+    drawPlanet(c, 'cretaceous', cx, cy, pr, { rot: 1.75 + t * .004, haze: [70, 54, 44, winter], atmK: 1 - winter * .8 });
+    if (k < hit) {
+      const m = k / hit, e = m * m;
+      const ax = lerp(cx + pr * 2.6, sx, e), ay = lerp(cy - pr * 2.1, sy, e);
+      c.strokeStyle = 'rgba(255,220,170,.5)'; c.lineWidth = 1.5;
+      c.beginPath(); c.moveTo(ax, ay); c.lineTo(ax + (cx + pr * 2.6 - sx) * .08, ay + (cy - pr * 2.1 - sy) * .08); c.stroke();
+      c.globalCompositeOperation = 'lighter'; glow(c, ax, ay, R * .06, [255, 230, 190], .9); c.globalCompositeOperation = 'source-over';
+    } else {
+      const m = clamp((k - hit) / .6);
+      c.save(); c.beginPath(); c.arc(cx, cy, pr, 0, TAU); c.clip();
+      const rr = pr * 1.4 * easeOut(m) + 1, g = c.createRadialGradient(sx, sy, 0, sx, sy, rr);
+      g.addColorStop(0, 'rgba(40,26,18,.75)'); g.addColorStop(.7, 'rgba(60,40,28,.45)'); g.addColorStop(1, 'rgba(60,40,28,0)');
+      c.fillStyle = g; c.fillRect(cx - pr, cy - pr, pr * 2, pr * 2); c.restore();
+      c.globalCompositeOperation = 'lighter';
+      glow(c, sx, sy, pr * .35, [255, 150, 60], Math.exp(-(k - hit) * 7));
+      const fl = 1 - clamp((k - hit) / .08); if (fl > 0) glow(c, sx, sy, pr * 1.5, [255, 245, 225], fl);
+      c.globalCompositeOperation = 'source-over';
+      if (m > .1) label(c, 'CHICXULUB', sx - 14, sy - pr * .16, 'rgba(255,220,180,.85)', 'right');
+    }
+  }
+};
+
+function drawMembrane(c, x, y, r, t, ph, sx = 1) {
+  c.beginPath();
+  for (let i = 0; i <= 40; i++) {
+    const a = i / 40 * TAU, rr = r * (1 + .05 * Math.sin(3 * a + t * 1.3 + ph) + .03 * Math.sin(5 * a - t * .9 + ph));
+    const px = x + Math.cos(a) * rr * sx, py = y + Math.sin(a) * rr;
+    i ? c.lineTo(px, py) : c.moveTo(px, py);
+  }
+  c.closePath();
+}
+function waterBg(c, top, bot) {
+  const g = c.createLinearGradient(0, 0, 0, S.h); g.addColorStop(0, top); g.addColorStop(1, bot);
+  c.fillStyle = g; c.fillRect(0, 0, S.w, S.h);
+  c.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < 6; i++) {
+    const x = S.x0 + (S.x1 - S.x0) * (i / 5) + Math.sin(S.t * .2 + i) * 30;
+    c.fillStyle = 'rgba(160,230,230,.025)';
+    c.beginPath(); c.moveTo(x - 20, 0); c.lineTo(x + 30, 0); c.lineTo(x + 130 + i * 10, S.h); c.lineTo(x + 40, S.h); c.fill();
+  }
+  c.globalCompositeOperation = 'source-over';
+}
+SC.cells = (c) => {
+  const { cx, cy, k, t, R, v } = S;
+  if (v === 'luca') {
+    waterBg(c, '#0b3a42', '#03090d');
+    const vx = cx + R * 1.05, by = S.y1, vh = R * 1.25, vw = R * .3;
+    // plume
+    const PL = once('plume', () => { const r = mulberry32(131); return Array.from({ length: 220 }, () => ({ o: r(), x: gauss(r), s: .5 + r() })); });
+    for (const p of PL) {
+      const ph = (t * .06 * p.s + p.o) % 1, y = by - vh - ph * R * 2.2, x = vx + p.x * (6 + ph * R * .45) + Math.sin(t + p.o * 9) * 6;
+      c.fillStyle = rgba([40, 36, 34], .5 * (1 - ph)); c.beginPath(); c.arc(x, y, 3 + ph * 14, 0, TAU); c.fill();
+    }
+    c.fillStyle = '#17120f';
+    c.beginPath(); c.moveTo(vx - vw, by); c.lineTo(vx - vw * .45, by - vh * .55); c.lineTo(vx - vw * .32, by - vh); c.lineTo(vx + vw * .3, by - vh); c.lineTo(vx + vw * .5, by - vh * .5); c.lineTo(vx + vw * 1.1, by); c.fill();
+    c.globalCompositeOperation = 'lighter';
+    c.strokeStyle = 'rgba(255,120,40,.5)'; c.lineWidth = 1.2;
+    for (let i = 0; i < 5; i++) { const yy = by - vh * (.15 + i * .17); c.beginPath(); c.moveTo(vx - vw * .4, yy); c.lineTo(vx - vw * .1, yy - 8); c.lineTo(vx + vw * .2, yy + 3); c.stroke(); }
+    glow(c, vx, by - vh, R * .3, [255, 140, 60], .35 + .1 * Math.sin(t * 2));
+    c.globalCompositeOperation = 'source-over';
+    // cells
+    const C = once('cells', () => { const r = mulberry32(141); return Array.from({ length: 34 }, (_, i) => ({ x: r(), y: r(), r: .07 + r() * .05, b: i < 3 ? 0 : .05 + (i / 34) * .8, ph: r() * TAU, p: i < 3 ? i : (r() * i) | 0 })); });
+    const ax = S.x0 + 20, aw = Math.max(80, vx - vw - R * .2 - ax), ay = S.y0 + 20, ah = S.y1 - S.y0 - 40;
+    const pos = (q) => [ax + q.x * aw + Math.sin(t * .2 + q.ph) * R * .06, ay + q.y * ah + Math.cos(t * .17 + q.ph) * R * .05];
+    for (const q of C) {
+      if (k < q.b) continue;
+      const g = easeOut(clamp((k - q.b) / .07)), rr = q.r * R * (.4 + .6 * g);
+      let [x, y] = pos(q);
+      if (g < 1) { const [px, py] = pos(C[q.p]); x = lerp(px, x, g); y = lerp(py, y, g); }
+      drawMembrane(c, x, y, rr, t, q.ph);
+      const fg = c.createRadialGradient(x, y, 0, x, y, rr);
+      fg.addColorStop(0, 'rgba(140,220,170,.12)'); fg.addColorStop(1, 'rgba(140,220,170,.32)');
+      c.fillStyle = fg; c.fill(); c.strokeStyle = 'rgba(175,255,205,.75)'; c.lineWidth = 1.4; c.stroke();
+      drawMembrane(c, x, y, rr * .86, t, q.ph); c.strokeStyle = 'rgba(175,255,205,.2)'; c.lineWidth = 1; c.stroke();
+      c.strokeStyle = 'rgba(255,220,150,.65)'; c.beginPath();
+      for (let i = 0; i <= 16; i++) { const a = i / 16 * TAU, r2 = rr * (.32 + .08 * Math.sin(a * 4 + q.ph + t)); i ? c.lineTo(x + Math.cos(a) * r2, y + Math.sin(a) * r2) : c.moveTo(x + Math.cos(a) * r2, y + Math.sin(a) * r2); }
+      c.stroke();
+    }
+    label(c, 'HYDROTHERMAL VENT', vx, by - vh - 18, 'rgba(255,190,140,.7)', 'center');
+  } else {
+    waterBg(c, '#2f7f86', '#081c22');
+    const fy = S.y1 - (S.y1 - S.y0) * .06;
+    c.fillStyle = '#2a2a22'; c.fillRect(0, fy, S.w, S.h - fy);
+    const F = once('fil', () => { const r = mulberry32(151); return Array.from({ length: 13 }, () => ({ x: r(), n: 8 + ((r() * 9) | 0), d: r() * .4, ph: r() * TAU, s: .8 + r() * .4 })); });
+    const cw = R * .085, ch = R * .065;
+    for (const f of F) {
+      const bx = lerp(S.x0 + 20, S.x1 - 20, f.x), nv = Math.min(f.n, Math.ceil(f.n * clamp(k * 1.4 + .15 - f.d)));
+      let x = bx, y = fy, a = -Math.PI / 2;
+      c.strokeStyle = 'rgba(120,50,60,.8)'; c.lineWidth = 2; c.beginPath(); c.moveTo(bx - 8, fy + 2); c.lineTo(bx, fy - 2); c.lineTo(bx + 7, fy + 3); c.stroke();
+      for (let i = 0; i < nv; i++) {
+        a = -Math.PI / 2 + Math.sin(t * .6 + f.ph + i * .25) * .06 * i;
+        const w = cw * f.s, h = ch * f.s;
+        x += Math.cos(a) * h; y += Math.sin(a) * h;
+        c.save(); c.translate(x, y); c.rotate(a + Math.PI / 2);
+        const tip = nv === f.n && i >= f.n - 2;
+        c.fillStyle = tip ? 'rgba(170,40,70,.8)' : 'rgba(225,95,115,.5)'; c.strokeStyle = 'rgba(255,160,170,.75)'; c.lineWidth = 1;
+        c.beginPath(); c.ellipse(0, 0, w / 2, h / 2 * .9, 0, 0, TAU); c.fill(); c.stroke();
+        c.restore();
+      }
+    }
+    label(c, 'BANGIOMORPHA, A RED ALGA, ~1.05 BILLION YEARS OLD', cx, S.y0 + 24, 'rgba(233,229,217,.6)', 'center', 9.5);
+  }
+  // drifting specks
+  const SP = once('specks', () => { const r = mulberry32(161); return Array.from({ length: 90 }, () => ({ x: r(), y: r(), s: r() })); });
+  c.fillStyle = 'rgba(200,240,230,.25)';
+  for (const p of SP) c.fillRect(((p.x + t * .004 * (p.s + .3)) % 1) * S.w, ((p.y - t * .003 * p.s) % 1 + 1) % 1 * S.h, 1.5, 1.5);
+};
+
+SC.strom = (c) => {
+  const { k, t, R } = S;
+  const top = S.y0 + (S.y1 - S.y0) * .2, floor = S.y1 - (S.y1 - S.y0) * .08;
+  const sky = c.createLinearGradient(0, 0, 0, top); sky.addColorStop(0, '#d9925a'); sky.addColorStop(1, '#f2c79a');
+  c.fillStyle = sky; c.fillRect(0, 0, S.w, top);
+  c.globalCompositeOperation = 'lighter'; glow(c, S.x1 - R * .6, top - R * .5, R * .8, [255, 230, 180], .7); c.globalCompositeOperation = 'source-over';
+  const wg = c.createLinearGradient(0, top, 0, S.h); wg.addColorStop(0, '#3f8f8a'); wg.addColorStop(1, '#0d2e33');
+  c.fillStyle = wg; c.fillRect(0, top, S.w, S.h - top);
+  c.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < 7; i++) { const x = S.x0 + (S.x1 - S.x0) * i / 6 + Math.sin(t * .25 + i) * 20; c.fillStyle = 'rgba(255,240,200,.03)'; c.beginPath(); c.moveTo(x, top); c.lineTo(x + 40, top); c.lineTo(x - 60, S.h); c.lineTo(x - 140, S.h); c.fill(); }
+  c.globalCompositeOperation = 'source-over';
+  c.strokeStyle = 'rgba(255,240,210,.5)'; c.lineWidth = 1; c.beginPath();
+  for (let x = 0; x <= S.w; x += 8) { const y = top + Math.sin(x * .03 + t * 1.2) * 2; x ? c.lineTo(x, y) : c.moveTo(x, y); } c.stroke();
+  c.fillStyle = '#5a4a36'; c.fillRect(0, floor, S.w, S.h - floor);
+  const M = once('mounds', () => { const r = mulberry32(171); return Array.from({ length: 7 }, (_, i) => ({ x: (i + .5) / 7 + (r() - .5) * .06, w: .26 + r() * .2, h: .45 + r() * .5 })); });
+  const L = 24, vis = Math.max(3, Math.floor(L * clamp(k * 1.1 + .12)));
+  const topPts = [];
+  for (const m of M) {
+    const x = lerp(S.x0, S.x1, m.x), wm = R * m.w, hm = Math.min(R * m.h, (floor - top) * .75);
+    for (let j = vis; j >= 1; j--) {
+      const hj = hm * j / L, wj = wm * (1 - .2 * j / L) + 4;
+      c.fillStyle = j % 2 ? '#8a7454' : '#6b583f';
+      c.beginPath(); c.ellipse(x, floor, wj / 2, hj + 2, 0, Math.PI, TAU); c.fill();
+    }
+    const hv = hm * vis / L, wv = wm * (1 - .2 * vis / L) + 4;
+    c.strokeStyle = 'rgba(110,200,110,.9)'; c.lineWidth = 3;
+    c.beginPath(); c.ellipse(x, floor, wv / 2, hv + 2, 0, Math.PI, TAU); c.stroke();
+    topPts.push([x, floor - hv - 2, wv]);
+  }
+  const B = once('bub', () => { const r = mulberry32(181); return Array.from({ length: 70 }, () => ({ m: (r() * 7) | 0, o: r(), x: r() - .5, s: .6 + r() })); });
+  c.strokeStyle = 'rgba(220,255,240,.6)'; c.lineWidth = 1;
+  for (const b of B) {
+    if (b.o > k * 1.4) continue;
+    const [x, y, w] = topPts[b.m], rise = y - top, ph = (t * .08 * b.s + b.o) % 1;
+    const bx = x + b.x * w * .5 + Math.sin(t * 2 + b.o * 9) * 3, by = y - ph * rise;
+    c.globalAlpha = 1 - ph; c.beginPath(); c.arc(bx, by, 1.5 + b.s * 1.5, 0, TAU); c.stroke();
+  }
+  c.globalAlpha = 1;
+  label(c, 'O₂', topPts[3][0] + 22, (topPts[3][1] + top) / 2, 'rgba(220,255,240,.85)', 'left', 12);
+  label(c, 'STROMATOLITES: LAYER ON LAYER OF MICROBIAL MAT', S.cx, floor + 20 < S.y1 + 10 ? floor + 18 : floor - 10, 'rgba(255,240,220,.65)', 'center', 9.5);
+};
+
+SC.euk = (c) => {
+  const { cx, cy, k, t, R } = S;
+  c.fillStyle = '#04100f'; c.fillRect(0, 0, S.w, S.h);
+  c.globalCompositeOperation = 'lighter'; glow(c, cx, cy, R * 2.2, [60, 120, 100], .35); c.globalCompositeOperation = 'source-over';
+  const cr = R * 1.02, sx = 1.18;
+  drawMembrane(c, cx, cy, cr, t * .6, 0, sx);
+  const fg = c.createRadialGradient(cx, cy, 0, cx, cy, cr * 1.2); fg.addColorStop(0, 'rgba(120,200,170,.08)'); fg.addColorStop(1, 'rgba(120,200,170,.22)');
+  c.fillStyle = fg; c.fill(); c.strokeStyle = 'rgba(170,240,210,.8)'; c.lineWidth = 2.2; c.stroke();
+  const nx = cx - cr * .18, ny = cy + cr * .04, nr = cr * .34;
+  c.strokeStyle = 'rgba(150,200,255,.3)'; c.lineWidth = 3;
+  for (let i = 0; i < 3; i++) { c.beginPath(); c.arc(nx, ny, nr * (1.3 + i * .16), 2.2 + Math.sin(t * .3 + i) * .1, 4.6 + i * .2); c.stroke(); }
+  c.fillStyle = 'rgba(170,140,230,.22)'; c.strokeStyle = 'rgba(205,175,255,.85)'; c.lineWidth = 1.6;
+  c.beginPath(); c.arc(nx, ny, nr, 0, TAU); c.fill(); c.stroke();
+  c.strokeStyle = 'rgba(205,175,255,.35)'; c.beginPath(); c.arc(nx, ny, nr * .93, 0, TAU); c.stroke();
+  c.fillStyle = 'rgba(110,70,170,.7)'; c.beginPath(); c.arc(nx + nr * .2, ny - nr * .15, nr * .28, 0, TAU); c.fill();
+  c.strokeStyle = 'rgba(230,200,255,.4)'; c.lineWidth = 1;
+  for (let i = 0; i < 6; i++) { c.beginPath(); const a = i * 1.1; c.moveTo(nx + Math.cos(a) * nr * .7, ny + Math.sin(a) * nr * .6); c.quadraticCurveTo(nx + Math.cos(a + 1) * nr * .2, ny + Math.sin(a + .5 + t * .2) * nr * .3, nx + Math.cos(a + 2) * nr * .65, ny + Math.sin(a + 2) * nr * .6); c.stroke(); }
+  const mito = (x, y, a, len, col, line) => {
+    c.save(); c.translate(x, y); c.rotate(a);
+    c.fillStyle = rgba(col, .55); c.strokeStyle = rgba(mix(col, [255, 255, 255], .3), .9); c.lineWidth = 1.3;
+    c.beginPath(); c.ellipse(0, 0, len / 2, len * .23, 0, 0, TAU); c.fill(); c.stroke();
+    if (line) { c.strokeStyle = rgba(mix(col, [255, 255, 255], .45), .7); c.beginPath(); for (let i = 0; i <= 8; i++) { const xx = -len * .38 + i * len * .095; c.lineTo(xx, (i % 2 ? 1 : -1) * len * .12); } c.stroke(); }
+    c.restore();
+  };
+  for (let i = 0; i < 5; i++) {
+    const a = i * 1.26 + 1.2 + t * .05, d = cr * (.66 + .06 * Math.sin(t * .3 + i));
+    mito(cx + Math.cos(a) * d * sx, cy + Math.sin(a) * d * .92, a + 1.4 + Math.sin(t * .4 + i) * .2, cr * .26, [240, 140, 90], true);
+  }
+  const ink = clamp(k / .45), tr = clamp((k - .45) / .3);
+  const bx = lerp(cx + cr * 2.1, cx + cr * .55, ease(ink)), by = lerp(cy - cr * .55, cy - cr * .28, ease(ink));
+  const bcol = mix([140, 170, 255], [240, 140, 90], tr);
+  if (ink < 1) { c.strokeStyle = 'rgba(160,190,255,.6)'; c.lineWidth = 1; c.beginPath(); for (let i = 0; i <= 12; i++) { const xx = bx + cr * .12 + i * 5, yy = by + Math.sin(i * .9 - t * 8) * 4; i ? c.lineTo(xx, yy) : c.moveTo(xx, yy); } c.stroke(); }
+  mito(bx, by, -.25, cr * .26, bcol, tr > .4);
+  const la = smooth(.1, .25, k);
+  c.globalAlpha = la;
+  c.strokeStyle = 'rgba(233,229,217,.4)'; c.lineWidth = 1;
+  c.beginPath(); c.moveTo(nx - nr * .7, ny + nr * .7); c.lineTo(nx - nr * 1.3, ny + nr * 1.9); c.stroke();
+  label(c, 'NUCLEUS', nx - nr * 1.3, ny + nr * 1.9 + 12, 'rgba(233,229,217,.8)', 'center');
+  const txt = k < .45 ? 'FREE-LIVING BACTERIUM' : k < .75 ? 'ENGULFED, NOT DIGESTED' : 'MITOCHONDRION';
+  label(c, txt, bx, by - cr * .2, 'rgba(255,220,190,.9)', 'center');
+  c.globalAlpha = 1;
+};
+
+function oceanFloor(c, fy) {
+  c.fillStyle = '#2b3530';
+  c.beginPath(); c.moveTo(0, S.h);
+  for (let x = 0; x <= S.w; x += 20) c.lineTo(x, fy + Math.sin(x * .013) * 6 + Math.sin(x * .041) * 3);
+  c.lineTo(S.w, S.h); c.fill();
+}
+SC.ocean = (c) => {
+  const { cx, k, t, R } = S;
+  waterBg(c, '#1f6d86', '#04182b');
+  const fy = S.y1 - (S.y1 - S.y0) * .1;
+  oceanFloor(c, fy);
+  const ed = 1 - smooth(.5, .85, k) * .75;
+  const FR = once('fr', () => { const r = mulberry32(191); return Array.from({ length: 10 }, () => ({ x: r(), h: .45 + r() * .5, ph: r() * TAU, w: .1 + r() * .06 })); });
+  c.globalAlpha = ed;
+  for (const f of FR) {
+    const bx = lerp(S.x0, S.x1, f.x), h = R * f.h, sway = Math.sin(t * .7 + f.ph) * .1;
+    c.save(); c.translate(bx, fy); c.rotate(sway);
+    c.strokeStyle = 'rgba(230,200,160,.7)'; c.lineWidth = 2; c.beginPath(); c.moveTo(0, 0); c.lineTo(0, -h); c.stroke();
+    c.fillStyle = 'rgba(225,185,150,.42)'; c.beginPath(); c.moveTo(0, -h * .2);
+    c.quadraticCurveTo(R * f.w, -h * .55, 0, -h); c.quadraticCurveTo(-R * f.w, -h * .55, 0, -h * .2); c.fill();
+    c.strokeStyle = 'rgba(255,225,190,.45)'; c.lineWidth = 1;
+    for (let i = 1; i < 9; i++) { const y = -h * (.2 + i * .088), ww = R * f.w * .7 * Math.sin(i / 9 * Math.PI); c.beginPath(); c.moveTo(-ww, y + 5); c.lineTo(0, y); c.lineTo(ww, y + 5); c.stroke(); }
+    c.restore();
+  }
+  c.globalAlpha = 1;
+  const TR = once('tri', () => { const r = mulberry32(201); return Array.from({ length: 7 }, () => ({ o: r(), sp: .01 + r() * .015, dir: r() < .5 ? -1 : 1, s: .7 + r() * .5, k0: .25 + r() * .25 })); });
+  for (const tb of TR) {
+    const a = clamp((k - tb.k0) / .1); if (a <= 0) continue;
+    const L = R * .16 * tb.s, ph = ((tb.o + t * tb.sp) % 1);
+    const x = lerp(S.x0 - L, S.x1 + L, tb.dir > 0 ? ph : 1 - ph), y = fy - L * .2;
+    c.save(); c.globalAlpha = a; c.translate(x, y); c.scale(tb.dir, 1);
+    c.fillStyle = '#7e6448'; c.strokeStyle = '#c8a679'; c.lineWidth = 1;
+    c.beginPath(); c.ellipse(0, 0, L * .55, L * .3, 0, 0, TAU); c.fill(); c.stroke();
+    c.beginPath(); c.arc(L * .45, 0, L * .3, -Math.PI / 2, Math.PI / 2); c.fill(); c.stroke();
+    for (let i = -3; i <= 3; i++) { c.beginPath(); c.moveTo(i * L * .12, -L * .28); c.lineTo(i * L * .12, L * .28); c.stroke(); }
+    c.restore();
+  }
+  if (k > .5) {
+    const a = clamp((k - .5) / .15);
+    for (let j = 0; j < 2; j++) {
+      const L = R * (.5 - j * .15), x = cx + Math.sin(t * .12 + j * 2.5) * (S.x1 - S.x0) * .35, y = S.y0 + (S.y1 - S.y0) * (.35 + j * .2) + Math.sin(t * .4 + j) * 14;
+      const dir = Math.cos(t * .12 + j * 2.5) >= 0 ? 1 : -1;
+      c.save(); c.globalAlpha = a; c.translate(x, y); c.scale(dir, 1);
+      c.fillStyle = 'rgba(200,120,90,.75)'; c.strokeStyle = 'rgba(255,170,130,.8)'; c.lineWidth = 1;
+      for (let i = 0; i < 11; i++) {
+        const fx = L * .45 - i * L * .085, fw = Math.sin(t * 5 - i * .7) * L * .05;
+        c.beginPath(); c.ellipse(fx, -L * .1 - Math.abs(fw), L * .05, L * .09 + fw, 0, 0, TAU); c.fill();
+        c.beginPath(); c.ellipse(fx, L * .1 + Math.abs(fw), L * .05, L * .09 - fw, 0, 0, TAU); c.fill();
+      }
+      c.beginPath(); c.ellipse(0, 0, L * .5, L * .09, 0, 0, TAU); c.fill(); c.stroke();
+      c.lineWidth = 2; c.beginPath(); c.moveTo(L * .5, -L * .03); c.quadraticCurveTo(L * .7, L * .02, L * .62, L * .16); c.moveTo(L * .5, L * .03); c.quadraticCurveTo(L * .68, L * .1, L * .56, L * .2); c.stroke();
+      c.fillStyle = '#111'; c.beginPath(); c.arc(L * .46, -L * .1, L * .025, 0, TAU); c.fill();
+      c.restore();
+    }
+  }
+  const lab = k < .45 ? 'EDIACARAN SEAFLOOR: CHARNIA FRONDS' : 'CAMBRIAN: TRILOBITES AND ANOMALOCARIS';
+  label(c, lab, cx, S.y0 + 22, 'rgba(233,229,217,.6)', 'center', 9.5);
+};
+
+/* land plants */
+function genTree(type, seed) {
+  const r = mulberry32(seed), segs = [];
+  const seg = (x1, y1, x2, y2, d, w, f = 0) => segs.push([x1, y1, x2, y2, d, w, f]);
+  if (type === 'arch') {
+    let x = 0, y = 0;
+    for (let i = 0; i < 7; i++) {
+      const nx = x + (r() - .5) * .03, ny = y - 1 / 7, h = (i + 1) / 7;
+      seg(x, y, nx, ny, i * .3, .05 * (1 - i / 8) + .01);
+      if (i >= 2) for (const sd of [-1, 1]) {
+        const len = (.5 - h * .32) * (.8 + r() * .4), ang = sd * (1.15 + r() * .35);
+        const ex = nx + Math.sin(ang) * len, ey = ny - Math.cos(ang) * len * .5 + len * .1;
+        seg(nx, ny, ex, ey, i * .3 + .8, .012, 1);
+        const mx = (nx + ex) / 2, my = (ny + ey) / 2;
+        seg(mx, my, mx + Math.sin(ang - sd * .6) * len * .45, my - Math.cos(ang - sd * .6) * len * .3, i * .3 + 1.3, .008, 1);
+      }
+      x = nx; y = ny;
+    }
+    seg(x, y, x, y - .1, 2.4, .01, 1);
+  } else if (type === 'watt') {
+    let x = 0, y = 0;
+    for (let i = 0; i < 5; i++) { const nx = x + .015 * Math.sin(i), ny = y - .2; seg(x, y, nx, ny, i * .35, .055 - i * .004); x = nx; y = ny; }
+    for (let j = 0; j < 10; j++) {
+      const a = -2.6 + j * .58 + (r() - .5) * .2; let px = x, py = y;
+      for (let s = 0; s < 3; s++) { const aa = a + Math.sign(Math.cos(a)) * s * .45, l = .14; const qx = px + Math.cos(aa) * l, qy = py + Math.sin(aa) * l + s * .05; seg(px, py, qx, qy, 1.9 + s * .3 + j * .02, .008, 1); px = qx; py = qy; }
+    }
+  } else if (type === 'lepi') {
+    let x = 0, y = 0;
+    for (let i = 0; i < 8; i++) { const nx = x, ny = y - .1; seg(x, y, nx, ny, i * .22, .05 - i * .002); x = nx; y = ny; }
+    const fork = (fx, fy, a, l, d, lv) => { const ex = fx + Math.sin(a) * l, ey = fy - Math.cos(a) * l; seg(fx, fy, ex, ey, d, .02 - lv * .005, lv >= 2 ? 1 : 0); if (lv < 3) { fork(ex, ey, a - .4 - r() * .2, l * .78, d + .3, lv + 1); fork(ex, ey, a + .4 + r() * .2, l * .78, d + .3, lv + 1); } };
+    fork(x, y, -.35, .09, 1.8, 0); fork(x, y, .35, .09, 1.8, 0);
+  } else if (type === 'cala') {
+    let x = 0, y = 0;
+    for (let i = 0; i < 9; i++) { const ny = y - .11; seg(x, y, x, ny, i * .25, .022, 2); y = ny; }
+  } else {
+    seg(0, 0, 0, -.5, 0, .04); seg(0, -.5, -.25, -1, .8, .035, 3); seg(0, -.5, .25, -1, .8, .035, 3);
+  }
+  let D = 0; for (const s of segs) D = Math.max(D, s[4]);
+  return { segs, D };
+}
+function drawTree(c, tr, x, y, s, g, trunk, leaf, sway) {
+  if (g <= 0) return;
+  c.save(); c.translate(x, y); c.transform(1, 0, sway, 1, 0, 0); c.scale(s, s);
+  c.lineCap = 'round';
+  const lim = g * (tr.D + 1);
+  for (const sg of tr.segs) {
+    const f = clamp(lim - sg[4]); if (f <= 0) continue;
+    const ex = lerp(sg[0], sg[2], f), ey = lerp(sg[1], sg[3], f);
+    c.strokeStyle = sg[6] === 1 ? leaf : trunk; c.lineWidth = Math.max(sg[5], .9 / s);
+    c.beginPath(); c.moveTo(sg[0], sg[1]); c.lineTo(ex, ey); c.stroke();
+    if (sg[6] === 1 && f > .3) {
+      c.strokeStyle = leaf; c.lineWidth = Math.max(.006, .8 / s);
+      const len = Math.hypot(ex - sg[0], ey - sg[1]), dx = (ex - sg[0]) / (len || 1), dy = (ey - sg[1]) / (len || 1), n = Math.max(2, Math.round(len * 40));
+      c.beginPath();
+      for (let i = 1; i <= n; i++) { const px = sg[0] + (ex - sg[0]) * i / n, py = sg[1] + (ey - sg[1]) * i / n, l = .045; c.moveTo(px, py); c.lineTo(px - dy * l + dx * l * .4, py + dx * l + dy * l * .4); c.moveTo(px, py); c.lineTo(px + dy * l + dx * l * .4, py - dx * l + dy * l * .4); }
+      c.stroke();
+    } else if (sg[6] === 2 && f >= 1) {
+      c.strokeStyle = leaf; c.lineWidth = Math.max(.005, .8 / s); c.beginPath();
+      for (let i = 0; i < 6; i++) { const a = -Math.PI / 2 + (i - 2.5) * .5; c.moveTo(ex, ey); c.lineTo(ex + Math.cos(a + Math.PI) * .07 * Math.sign(i - 2.5), ey + .05); }
+      c.stroke();
+    } else if (sg[6] === 3 && f >= 1) {
+      c.fillStyle = '#7a5a2a'; c.beginPath(); c.ellipse(ex, ey - .06, .07, .1, 0, 0, TAU); c.fill();
+    }
+  }
+  c.restore();
+}
+SC.land = (c) => {
+  const { k, t, R, v } = S;
+  const ground = S.y1 - (S.y1 - S.y0) * .14;
+  const skies = { moss: ['#7fa7b8', '#e6dcc0'], trees: ['#3d4f78', '#f0a86a'], coal: ['#5d7d6c', '#cbd3ad'] }[v];
+  const sg = c.createLinearGradient(0, 0, 0, ground); sg.addColorStop(0, skies[0]); sg.addColorStop(1, skies[1]);
+  c.fillStyle = sg; c.fillRect(0, 0, S.w, ground + 1);
+  const hz = v === 'trees' ? [240, 168, 106] : v === 'coal' ? [203, 211, 173] : [230, 220, 192];
+  if (v === 'trees') { c.globalCompositeOperation = 'lighter'; glow(c, S.cx + R * .7, ground - R * .25, R * 1.2, [255, 200, 130], .55); c.globalCompositeOperation = 'source-over'; }
+  // distant hills
+  c.fillStyle = rgba(mix(hz, [60, 60, 70], .35), 1);
+  c.beginPath(); c.moveTo(0, ground);
+  for (let x = 0; x <= S.w; x += 16) c.lineTo(x, ground - R * .18 - Math.sin(x * .006 + 1) * R * .1 - Math.sin(x * .017) * R * .04);
+  c.lineTo(S.w, ground); c.fill();
+  const gcol = v === 'moss' ? '#5c5246' : v === 'coal' ? '#1d2a22' : '#1f2418';
+  c.fillStyle = gcol; c.fillRect(0, ground, S.w, S.h - ground);
+  const water = v !== 'trees';
+  const wy = ground + (S.h - ground) * .05, wx0 = v === 'coal' ? 0 : S.cx - R * 1.2, wx1 = v === 'coal' ? S.w : S.cx + R * 1.2;
+  if (water) {
+    const wg = c.createLinearGradient(0, wy, 0, S.h); wg.addColorStop(0, rgba(mix(hz, [40, 70, 80], .5), .9)); wg.addColorStop(1, 'rgba(20,40,40,.9)');
+    c.fillStyle = wg; c.beginPath(); c.ellipse((wx0 + wx1) / 2, wy + (S.h - wy) * .35, (wx1 - wx0) / 2, (S.h - wy) * .45, 0, 0, TAU); c.fill();
+  }
+  const sw = (ph, h) => Math.sin(t * .6 + ph) * .02 * h;
+  if (v === 'moss') {
+    const P = once('moss', () => { const r = mulberry32(211); return Array.from({ length: 150 }, () => ({ x: (r() - .5) * 2.8, y: r(), d: r(), s: .7 + r() * .6, ph: r() * TAU })); });
+    const tr = once('cook', () => genTree('cook', 5));
+    for (const p of P) {
+      const dist = Math.abs(p.x) / 1.4, appear = dist * .6 + p.d * .25;
+      const g = clamp((k - appear) / .2); if (g <= 0) continue;
+      const x = S.cx + p.x * R, y = ground + p.y * (S.h - ground) * .2 - 2;
+      if (p.d < .45) { c.fillStyle = rgba([70, 130, 60], .8 * g); c.beginPath(); c.ellipse(x, y, R * .06 * p.s * g, R * .02 * p.s * g, 0, 0, TAU); c.fill(); }
+      else drawTree(c, tr, x, y, R * .09 * p.s, g, '#5f8a3e', '#5f8a3e', sw(p.ph, 1));
+    }
+    label(c, 'BARE ROCK, NO SOIL YET', S.x1 - 16, ground - R * .35, 'rgba(60,50,40,.7)', 'right', 9.5);
+    return;
+  }
+  const T = once('forest_' + v, () => {
+    const r = mulberry32(v === 'coal' ? 223 : 227), list = [];
+    const n = v === 'coal' ? 26 : 18;
+    for (let i = 0; i < n; i++) {
+      const back = i < n * .45;
+      const type = v === 'coal' ? (r() < .68 ? 'lepi' : 'cala') : (r() < .55 ? 'arch' : 'watt');
+      const hs = type === 'lepi' ? 1.9 : type === 'arch' ? 1.35 : type === 'cala' ? .9 : .95;
+      list.push({ tr: genTree(type, 1000 + i * 7), x: r(), h: hs * (back ? .55 : 1) * (.8 + r() * .4), back, g0: v === 'coal' ? -1 : (back ? .05 : 0) + r() * .45, ph: r() * TAU });
+    }
+    return list.sort((a, b) => (b.back - a.back));
+  });
+  const trunkF = v === 'coal' ? '#2a2a1c' : '#2c2018', leafF = v === 'coal' ? '#3c5a2c' : '#2f5a2c';
+  for (const tr of T) {
+    const x = lerp(S.x0 - 40, S.x1 + 20, tr.x), y = tr.back ? ground - R * .06 : ground + (S.h - ground) * .1;
+    const g = tr.g0 < 0 ? 1 : clamp((k - tr.g0) / .45);
+    const fade = tr.back ? .5 : 0;
+    const tc = rgba(mix(trunkF === '#2a2a1c' ? [42, 42, 28] : [44, 32, 24], hz, fade), 1), lc = rgba(mix(v === 'coal' ? [60, 90, 44] : [47, 90, 44], hz, fade), 1);
+    if (tr.back && v === 'coal' && tr === T[Math.floor(T.length * .44)]) { c.fillStyle = rgba(hz, .35); c.fillRect(0, ground - R * 1.2, S.w, R * 1.2); }
+    drawTree(c, tr.tr, x, y, R * tr.h, g, tc, lc, sw(tr.ph, tr.h));
+  }
+  if (v === 'trees') {
+    c.fillStyle = 'rgba(40,70,30,.9)';
+    for (let i = 0; i < 60; i++) { const x = (i / 60) * S.w + Math.sin(i * 7.3) * 12, h = 4 + (i * 13 % 9); c.beginPath(); c.ellipse(x, ground + (S.h - ground) * .14, 10, h * clamp(k * 2), 0, Math.PI, TAU); c.fill(); }
+    label(c, 'ARCHAEOPTERIS', lerp(S.x0, S.x1, .15), S.y0 + 22, 'rgba(255,240,220,.6)', 'left', 9.5);
+    label(c, 'WATTIEZA', lerp(S.x0, S.x1, .85), S.y0 + 22, 'rgba(255,240,220,.6)', 'right', 9.5);
+  }
+  if (v === 'coal') {
+    c.fillStyle = rgba(hz, .12); c.fillRect(0, ground - R * .5, S.w, R * .6);
+    const x = S.cx + Math.sin(t * .3) * (S.x1 - S.x0) * .35, y = S.cy - R * .2 + Math.sin(t * 1.1) * R * .12;
+    const dir = Math.cos(t * .3) >= 0 ? 1 : -1, L = R * .16, fl = .55 + .45 * Math.abs(Math.sin(t * 30));
+    c.save(); c.translate(x, y); c.scale(dir, 1);
+    c.fillStyle = rgba([200, 220, 230], .35 * fl);
+    for (const [ox, sy] of [[.15, 1], [-.08, 1], [.15, -1], [-.08, -1]]) { c.beginPath(); c.ellipse(ox * L, sy * L * .55, L * .14, L * .58, sy * (ox > 0 ? .25 : -.25), 0, TAU); c.fill(); }
+    c.strokeStyle = '#20302a'; c.lineWidth = 2.4; c.beginPath(); c.moveTo(L * .45, 0); c.lineTo(-L * .9, 0); c.stroke();
+    c.restore();
+    label(c, 'MEGANEURA', x, y - R * .22, 'rgba(30,40,30,.75)', 'center', 9.5);
+  }
+};
+
+SC.redgiant = (c) => {
+  const { cx, cy, k, t, R } = S;
+  bgSpace(c, .6);
+  const ex = cx - R * .5, er = R * .28;
+  const limb = lerp(cx + R * 1.05, cx - R * .9, ease(k)), sr = lerp(R * 1.6, R * 6.5, ease(k)), scx = limb + sr;
+  const heat = smooth(.25, .9, k);
+  const vx = cx + R * .35;
+  drawPlanet(c, 'future', ex, cy, er, { rot: t * .1, haze: [255, 110, 50, .45 * heat], emBoost: 1 });
+  if (vx < limb) { drawBall(c, vx, cy - R * .25, R * .07, [220, 190, 140]); label(c, 'VENUS', vx, cy - R * .25 - R * .14, 'rgba(233,229,217,.6)', 'center'); }
+  if (ex + er < limb) label(c, 'EARTH', ex, cy + er + 16, 'rgba(233,229,217,.7)', 'center');
+  c.globalCompositeOperation = 'lighter'; glow(c, scx, cy, sr * 1.3, [255, 90, 40], .5); c.globalCompositeOperation = 'source-over';
+  const gran = noiseCanvas('gran', 256, 256, (x, y) => { const v = vnoise(x / 9, y / 9, 2, 301) * .6 + vnoise(x / 4, y / 4, 5, 302) * .4; return [80, 10, 0, clamp((v - .35) * 2.2) * 160]; });
+  c.save(); c.beginPath(); c.arc(scx, cy, sr, 0, TAU); c.clip();
+  const sg = c.createRadialGradient(scx, cy, 0, scx, cy, sr); sg.addColorStop(0, '#ffb36a'); sg.addColorStop(.75, '#f0602a'); sg.addColorStop(1, '#a8240c');
+  c.fillStyle = sg; c.fillRect(scx - sr, cy - sr, sr * 2, sr * 2);
+  const ts = R * 1.4;
+  for (let gx = -sr; gx < sr; gx += ts) for (let gy = -sr; gy < sr; gy += ts) c.drawImage(gran, scx + gx + Math.sin(t * .05) * 10, cy + gy, ts + 1, ts + 1);
+  c.restore();
+  if (k > .3) label(c, 'THE SUN’S SURFACE', limb + R * .2, cy + R * .9, 'rgba(255,230,200,.75)');
+};
+
+/* ---------- state & render loop ---------- */
+const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const DWELL = 9, XW = .82;
+let P = 0, playing = !reduced, dragging = false, clock = 0, last = 0;
+let enterIdx = -1, enterAt = 0, activeIdx = -1, xf = null;
+
+function renderEvent(c, idx, k) {
+  const e = EV[idx];
+  S.k = k; S.v = e.v || ''; S.ya = e.ya;
+  c.save(); SC[e.scene](c); c.restore();
+}
+function sceneK(i, f) { return dragging ? clamp(f / XW) : clamp((clock - enterAt) / (DWELL * XW)); }
+
+function frame(ts) {
+  const dt = Math.min(.1, (ts - (last || ts)) / 1000); last = ts;
+  clock += dt * (reduced ? .4 : 1);
+  if (playing && !dragging) {
+    P += dt / DWELL;
+    if (P >= N - 1) { P = N - 1; setPlaying(false); }
+  }
+  for (const key of ['x0', 'x1', 'y0', 'y1']) area[key] += (areaT[key] - area[key]) * Math.min(1, dt * 4);
+  S.w = W; S.h = H; S.t = clock; S.x0 = area.x0; S.x1 = area.x1; S.y0 = area.y0; S.y1 = area.y1;
+  S.cx = (area.x0 + area.x1) / 2; S.cy = (area.y0 + area.y1) / 2;
+  S.R = Math.max(50, Math.min(area.x1 - area.x0, (area.y1 - area.y0) * 1.15) * .34);
+
+  const i = Math.min(N - 1, Math.floor(P)), f = P - i;
+  if (i !== enterIdx) { enterIdx = i; enterAt = clock - (dragging ? 0 : f * DWELL); }
+  const kA = sceneK(i, f);
+  const blend = i < N - 1 ? smooth(XW, 1, f) : 0;
+
+  if (xf && clock - xf.t0 < .7) {
+    const b = ease((clock - xf.t0) / .7);
+    renderEvent(ctxA, xf.idx, xf.k);
+    renderEvent(ctxB, i, kA);
+    ctx.drawImage(bufA, 0, 0, W, H);
+    ctx.globalAlpha = b; ctx.drawImage(bufB, 0, 0, W, H); ctx.globalAlpha = 1;
+  } else {
+    xf = null;
+    if (blend > .001 && blend < .999) {
+      renderEvent(ctxA, i, kA); renderEvent(ctxB, i + 1, 0);
+      ctx.drawImage(bufA, 0, 0, W, H);
+      ctx.globalAlpha = blend; ctx.drawImage(bufB, 0, 0, W, H); ctx.globalAlpha = 1;
+    } else renderEvent(ctx, blend >= .999 ? i + 1 : i, blend >= .999 ? 0 : kA);
+  }
+  updateUI(i, f);
+  requestAnimationFrame(frame);
+}
+
+/* ---------- UI ---------- */
+const dom = {
+  eraName: el('eraName'), big: el('bigNum'), unit: el('bigUnit'), sub: el('subLine'),
+  chap: el('chap'), cdate: el('cdate'), title: el('ctitle'), body: el('cbody'), why: el('cwhy'), els: el('cels'), card: el('card'),
+  vSun: el('vSun'), vDay: el('vDay'), vMoon: el('vMoon'), vO2: el('vO2'),
+  story: el('story'), thumb: el('thumb'), marker: el('scaleMarker'), play: el('bPlay'), playIcon: el('playIcon'), tip: el('tip')
+};
+const setText = (n, s) => { if (n.textContent !== s) n.textContent = s; };
+const pad = n => String(n).padStart(2, '0');
+function fmtNum(v, dec) { return v.toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec }); }
+function fmtSpan(y) {
+  if (y >= 1e9) return [fmtNum(y / 1e9, y >= 4.5e9 && y < 4.6e9 ? 3 : 2), 'billion years'];
+  if (y >= 1e6) return [fmtNum(y / 1e6, y < 1e7 ? 1 : 0), 'million years'];
+  if (y >= 1e3) return [fmtNum(Math.round(y), 0), 'years'];
+  if (y >= 1) return [fmtNum(y, 0), 'years'];
+  const m = y / MIN;
+  if (m >= 1) return [fmtNum(m, m < 10 ? 1 : 0), 'minutes'];
+  return ['0', ''];
+}
+function interpLog(a, b, e) {
+  if (a === b) return a;
+  if (a > 0 && b > 0) return Math.exp(lerp(Math.log(a), Math.log(b), e));
+  if (a < 0 && b < 0) return -Math.exp(lerp(Math.log(-a), Math.log(-b), e));
+  return lerp(a, b, e);
+}
+function readout(age, ya) {
+  if (age < 1e9) {
+    if (age <= 0) { setText(dom.big, 't = 0'); setText(dom.unit, 'the first instant'); }
+    else { const [n, u] = fmtSpan(age); setText(dom.big, n); setText(dom.unit, u + ' after the Big Bang'); }
+    const [n3, u3] = fmtSpan(ya);
+    setText(dom.sub, n3 + ' ' + u3 + ' ago');
+    return;
+  }
+  if (Math.abs(ya) < 5e5) { setText(dom.big, 'Now'); setText(dom.unit, 'the present day'); }
+  else { const [n, u] = fmtSpan(Math.abs(ya)); setText(dom.big, (ya < 0 ? '+' : '') + n); setText(dom.unit, u + (ya < 0 ? ' from now' : ' ago')); }
+  const [n2, u2] = fmtSpan(age);
+  setText(dom.sub, 'Universe age: ' + n2 + ' ' + u2);
+}
+function vital(node, text, ok) { setText(node, text); node.classList.toggle('na', !ok); }
+function vitals(ya) {
+  const g = ya / 1e9, lum = sunLum(ya);
+  if (lum == null) vital(dom.vSun, 'none yet', false);
+  else if (ya < -7.65e9) vital(dom.vSun, 'white dwarf', true);
+  else vital(dom.vSun, lum < 3 ? '≈' + Math.round(lum * 100) + '%' : '≈×' + fmtNum(Math.round(lum / 10) * 10, 0), true);
+  if (ya > 4.54e9) { vital(dom.vDay, 'no Earth', false); vital(dom.vMoon, 'no Moon', false); vital(dom.vO2, 'no air', false); return; }
+  if (ya < 0) { vital(dom.vDay, 'unknown', false); vital(dom.vMoon, 'receding', false); vital(dom.vO2, ya < -1.5e9 ? 'none' : 'falling', false); return; }
+  if (ya > 4.51e9) vital(dom.vDay, 'molten', false); else vital(dom.vDay, '≈' + Math.round(interpT(DAY, g)) + ' h', true);
+  if (ya > 4.51e9) vital(dom.vMoon, 'no Moon', false); else vital(dom.vMoon, '≈' + fmtNum(Math.round(interpT(MOON, g)) * 1000, 0) + ' km', true);
+  const o = interpT(O2, g);
+  vital(dom.vO2, o < .01 ? 'trace' : o < 1 ? '≈' + o.toFixed(1) + '%' : '≈' + Math.round(o) + '%', true);
+}
+function showCard(idx) {
+  const e = EV[idx];
+  document.documentElement.style.setProperty('--era', ERAS[e.era].color);
+  setText(dom.eraName, ERAS[e.era].name);
+  dom.chap.textContent = pad(idx + 1) + ' / ' + N;
+  dom.cdate.textContent = e.date; dom.title.textContent = e.title; dom.body.textContent = e.body; dom.why.textContent = e.why;
+  dom.els.innerHTML = (e.els || []).map(([s, note, iso]) => {
+    const [z, name] = EL[s];
+    return '<div class="el" title="' + name + '"><span class="z">' + (iso ? iso : z) + '</span><span class="s">' + s + '</span><span class="n">' + note + '</span></div>';
+  }).join('');
+  dom.card.classList.remove('swap'); void dom.card.offsetWidth; dom.card.classList.add('swap');
+  dom.card.scrollTop = 0;
+  dotEls.forEach((d, j) => { d.classList.toggle('past', j < idx); d.classList.toggle('on', j === idx); });
+  eraEls.forEach(([sp, key]) => sp.classList.toggle('on', key === e.era));
+  dom.story.setAttribute('aria-valuenow', idx + 1);
+  dom.story.setAttribute('aria-valuetext', e.title + ', ' + e.date);
+  requestAnimationFrame(measure);
+}
+const TMAX = NOW + 7.7e9;
+function updateUI(i, f) {
+  const ai = (f < .91 || i >= N - 1) ? i : i + 1;
+  if (ai !== activeIdx) { activeIdx = ai; showCard(ai); }
+  const e = ease(smooth(XW, 1, f)), a = EV[i], b = EV[Math.min(N - 1, i + 1)];
+  const age = interpLog(a.age, b.age, e), ya = interpLog(a.ya, b.ya, e);
+  readout(age, ya);
+  vitals(ya);
+  dom.thumb.style.left = (P / (N - 1) * 100) + '%';
+  dom.marker.style.left = (clamp((NOW - ya) / TMAX) * 100) + '%';
+}
+function setPlaying(p) {
+  playing = p;
+  dom.play.setAttribute('aria-label', p ? 'Pause' : 'Play');
+  dom.playIcon.innerHTML = p ? '<path d="M4 2h3v12H4zM9 2h3v12H9z"/>' : '<path d="M4 2l10 6-10 6z"/>';
+}
+function jump(idx) {
+  idx = clamp(Math.round(idx), 0, N - 1);
+  const i = Math.min(N - 1, Math.floor(P));
+  if (idx === i && P === idx) return;
+  xf = { idx: i, k: sceneK(i, P - i), t0: clock };
+  P = idx; enterIdx = idx; enterAt = clock;
+}
+
+/* build timeline */
+const dotEls = [], eraEls = [];
+(function buildTracks() {
+  const segs = el('segs'), dots = el('dots'), eras = el('eras');
+  const pct = i => (i / (N - 1) * 100);
+  const keys = Object.keys(ERAS);
+  keys.forEach(key => {
+    const idx = EV.map((e, j) => e.era === key ? j : -1).filter(j => j >= 0);
+    const a = idx[0], b = idx[idx.length - 1];
+    const s = document.createElement('div'); s.className = 'seg';
+    const l = Math.max(0, pct(a - .5)), r = Math.min(100, pct(b + .5));
+    s.style.left = l + '%'; s.style.width = (r - l) + '%'; s.style.background = ERAS[key].color;
+    segs.appendChild(s);
+    const sp = document.createElement('span'); sp.textContent = ERAS[key].name.replace(/^The /, '');
+    sp.style.left = ((pct(a) + pct(b)) / 2) + '%';
+    if (a === 0) { sp.style.transform = 'none'; sp.style.left = '0'; }
+    if (b === N - 1) { sp.style.transform = 'translateX(-100%)'; sp.style.left = '100%'; }
+    eras.appendChild(sp); eraEls.push([sp, key]);
+  });
+  EV.forEach((e, j) => {
+    const d = document.createElement('span'); d.className = 'dot'; d.style.left = pct(j) + '%'; d.style.color = ERAS[e.era].color;
+    dots.appendChild(d); dotEls.push(d);
+  });
+  // to-scale bar
+  const inner = el('scaleInner'), labels = el('scaleLabels');
+  const sp = T => (T / TMAX * 100);
+  const band = (t0, t1, col, top, h) => { const d = document.createElement('div'); d.className = 'band'; d.style.left = sp(t0) + '%'; d.style.width = (sp(t1) - sp(t0)) + '%'; d.style.background = col; d.style.top = top + 'px'; d.style.height = h + 'px'; inner.appendChild(d); };
+  band(NOW - 4.54e9, NOW + 7.6e9, 'rgba(95,200,216,.55)', 3, 4);
+  band(NOW - 4.2e9, NOW + 1.0e9, '#9bd770', 4, 2);
+  EV.forEach(e => { const d = document.createElement('div'); d.className = 'tick'; d.style.left = sp(NOW - e.ya) + '%'; inner.appendChild(d); });
+  const now = document.createElement('div'); now.className = 'now'; now.style.left = sp(NOW) + '%'; inner.appendChild(now);
+  const lab = (txt, T, cls, align) => { const s = document.createElement('span'); s.textContent = txt; if (cls) s.className = cls; s.style.left = sp(T) + '%'; if (align === 'r') s.style.transform = 'translateX(-100%)'; else if (align === 'c') s.style.transform = 'translateX(-50%)'; labels.appendChild(s); };
+  lab('To scale · Big Bang', 0, 'k');
+  lab('Earth', NOW - 4.54e9, 'legend-earth mid', 'c');
+  lab('life', NOW - 4.2e9 + 1.1e9, 'legend-life mid', 'c');
+  lab('Now', NOW, '', 'c');
+  lab('Sun dies', TMAX, '', 'r');
+})();
+
+/* interaction */
+function posToP(clientX) { const r = dom.story.getBoundingClientRect(); return clamp((clientX - r.left) / r.width) * (N - 1); }
+dom.story.addEventListener('pointerdown', ev => {
+  dragging = true; dom.story.setPointerCapture(ev.pointerId); setPlaying(false);
+  P = posToP(ev.clientX); enterAt = clock;
+});
+dom.story.addEventListener('pointermove', ev => {
+  const p = posToP(ev.clientX), idx = Math.round(p), r = dom.story.getBoundingClientRect();
+  if (dragging) P = p;
+  dom.tip.hidden = false;
+  dom.tip.innerHTML = '<b>' + pad(idx + 1) + ' · ' + EV[idx].date + '</b>' + EV[idx].title;
+  dom.tip.style.left = clamp(r.left + idx / (N - 1) * r.width, 90, W - 90) + 'px';
+  dom.tip.style.top = (r.top - 6) + 'px';
+});
+const endDrag = () => { if (!dragging) return; dragging = false; const tgt = Math.round(P); P = Math.floor(P); jump(tgt); };
+dom.story.addEventListener('pointerup', endDrag);
+dom.story.addEventListener('pointercancel', endDrag);
+dom.story.addEventListener('pointerleave', () => { if (!dragging) dom.tip.hidden = true; });
+el('scaleBar').addEventListener('click', ev => {
+  const r = ev.currentTarget.getBoundingClientRect(), T = clamp((ev.clientX - r.left) / r.width) * TMAX, ya = NOW - T;
+  let best = 0; EV.forEach((e, j) => { if (Math.abs(e.ya - ya) < Math.abs(EV[best].ya - ya)) best = j; });
+  setPlaying(false); jump(best);
+});
+const step = d => { setPlaying(false); jump(Math.round(P) + d); };
+el('bPrev').addEventListener('click', () => step(-1));
+el('bNext').addEventListener('click', () => step(1));
+dom.play.addEventListener('click', () => {
+  if (!playing && P >= N - 1) { jump(0); }
+  else if (!playing) { const i = Math.floor(P); P = i + Math.min(P - i, XW * clamp((clock - enterAt) / (DWELL * XW))); }
+  setPlaying(!playing);
+});
+window.addEventListener('keydown', ev => {
+  if (ev.target.closest && ev.target.closest('button') && (ev.key === ' ' || ev.key === 'Enter')) return;
+  if (ev.key === 'ArrowRight') { step(1); ev.preventDefault(); }
+  else if (ev.key === 'ArrowLeft') { step(-1); ev.preventDefault(); }
+  else if (ev.key === ' ') { dom.play.click(); ev.preventDefault(); }
+  else if (ev.key === 'Home') { setPlaying(false); jump(0); }
+  else if (ev.key === 'End') { setPlaying(false); jump(N - 1); }
+});
+window.addEventListener('resize', resize);
+if (window.ResizeObserver) new ResizeObserver(measure).observe(el('card'));
+
+resize();
+setPlaying(playing);
+genTextures();
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
